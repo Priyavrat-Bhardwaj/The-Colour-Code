@@ -1,0 +1,3344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>The Colour Code | Learn Colours by Playing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@500;600;700&family=Outfit:wght@500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { box-sizing: border-box; user-select: none; -webkit-user-drag: none; }
+    body, html {
+      margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+      background: #0f172a; color: #f8fafc;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+    .font-title { font-family: 'Fredoka', sans-serif; }
+    .font-game { font-family: 'Lilita One', 'Fredoka', 'Baloo 2', sans-serif; letter-spacing: .02em; }
+    .font-heading { font-family: 'Outfit', sans-serif; }
+
+    /* Master 3D WebGL Viewport */
+    #webgl-viewport {
+      position: absolute; inset: 0; width: 100%; height: 100%; z-index: 1;
+      transition: filter 0.35s ease;
+    }
+
+    /* World-Space Floating 3D Labels */
+    #world-labels-layer {
+      position: absolute; inset: 0; pointer-events: none; z-index: 5; overflow: hidden;
+    }
+    .world-label {
+      position: absolute; transform: translate(-50%, -100%);
+      pointer-events: none; transition: opacity 0.2s ease;
+      white-space: nowrap;
+    }
+
+    /* UI Screens */
+    .ui-screen {
+      position: absolute; inset: 0; z-index: 10; pointer-events: none;
+    }
+    .pointer-auto { pointer-events: auto; }
+
+    .glass-panel {
+      background: rgba(15, 23, 42, 0.86);
+      backdrop-filter: blur(16px);
+      border: 1.5px solid rgba(255, 255, 255, 0.16);
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45);
+    }
+    .glass-light {
+      background: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(16px);
+      border: 2px solid rgba(255, 255, 255, 0.9);
+      box-shadow: 0 18px 40px rgba(15, 23, 42, 0.25);
+      color: #0f172a;
+    }
+
+    .btn-game {
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.45rem;
+    }
+    .btn-game:hover:not(:disabled) {
+      transform: translateY(-2px) scale(1.02);
+      box-shadow: 0 10px 22px rgba(0, 0, 0, 0.25);
+    }
+    .btn-game:active:not(:disabled) { transform: translateY(1px); }
+
+    @keyframes pulseGlow {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 24px rgba(251, 191, 36, 0.55); }
+      50% { transform: scale(1.03); box-shadow: 0 0 36px rgba(251, 191, 36, 0.9); }
+    }
+    .pulse-cta { animation: pulseGlow 2.1s infinite ease-in-out; }
+
+    /* Paint Bottle Button Hover */
+    .paint-pot {
+      transition: all 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+    }
+    .paint-pot:hover {
+      transform: translateY(-4px) scale(1.05);
+    }
+
+    /* Real-Time 3D Vision Shaders (Level 5 & Level 6) */
+    .vision-normal #webgl-viewport { filter: none; }
+    .vision-protanopia #webgl-viewport { filter: url(#protanopia-filter); }
+    .vision-deuteranopia #webgl-viewport { filter: url(#deuteranopia-filter); }
+    .vision-tritanopia #webgl-viewport { filter: url(#tritanopia-filter); }
+    .vision-dog #webgl-viewport { filter: url(#dog-filter); }
+    .vision-bee #webgl-viewport { filter: hue-rotate(210deg) saturate(240%) contrast(130%); }
+    .vision-snake #webgl-viewport { filter: invert(12%) sepia(90%) saturate(450%) hue-rotate(310deg) contrast(145%); }
+
+    /* 2D Village Map Node Styling */
+    .map-node-btn {
+      transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      cursor: pointer;
+    }
+    .map-node-btn { transform-box: fill-box; transform-origin: center; }
+    .map-node-btn:hover { transform: scale(1.1); filter: drop-shadow(0 0 10px rgba(253,224,71,.9)); }
+    .node-ring { transform-box: fill-box; transform-origin: center; animation: ringPulse 1.6s infinite ease-out; }
+    @keyframes ringPulse { 0% { transform: scale(.85); opacity: 1; } 100% { transform: scale(1.3); opacity: 0; } }
+    #map2d-avatar { pointer-events: none; }
+    #map2d-avatar-bob { animation: avatarBob 1.1s infinite ease-in-out; }
+    @keyframes avatarBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+    #ambient-orbs { position: absolute; inset: 0; z-index: 2; pointer-events: none; overflow: hidden; }
+    .orb { position: absolute; border-radius: 50%; filter: blur(2px); opacity: .55; animation: orbFloat linear infinite; }
+    @keyframes orbFloat { 0% { transform: translateY(105vh) scale(.6); } 100% { transform: translateY(-15vh) scale(1.2); } }
+    .confetti { position: fixed; top: -14px; z-index: 60; pointer-events: none; animation: confFall linear forwards; }
+    @keyframes confFall { to { transform: translateY(105vh) rotate(720deg); opacity: .9; } }
+    .neon-dot { position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: #39ff14; box-shadow: 0 0 4px #39ff14, 0 0 10px #39ff14, 0 0 18px #39ff14; opacity: 0; animation: neonBlink 10s infinite ease-in-out; pointer-events: none; }
+    @keyframes neonBlink {
+      0% { opacity: 0; transform: scale(.6); }
+      2% { opacity: 1; transform: scale(1); }
+      6% { opacity: .5; transform: scale(.8); }
+      10% { opacity: 1; transform: scale(1); }
+      14% { opacity: .5; transform: scale(.8); }
+      18% { opacity: 1; transform: scale(1); }
+      20% { opacity: 0; transform: scale(.6); }
+      100% { opacity: 0; transform: scale(.6); }
+    }
+    .ic { width: 1.15em; height: 1.15em; display: inline-block; flex-shrink: 0; stroke: currentColor; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.18em; }
+    @media (prefers-reduced-motion: reduce) {
+      .orb, .confetti { display: none; }
+      .node-ring, #map2d-avatar-bob { animation: none; }
+    }
+    .pop-float { position: fixed; left: 50%; top: 32%; transform: translateX(-50%); z-index: 70; pointer-events: none; font-family: 'Fredoka', 'Outfit', sans-serif; font-weight: 800; font-size: 34px; text-shadow: 0 3px 12px rgba(0,0,0,.8); white-space: nowrap; animation: popUp 1.5s ease-out forwards; }
+    @keyframes popUp { 0% { opacity: 0; transform: translate(-50%, 20px) scale(.6); } 15% { opacity: 1; transform: translate(-50%, 0) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -70px) scale(1); } }
+    .fx-flash { position: fixed; inset: 0; z-index: 55; pointer-events: none; animation: fxFade .6s ease-out forwards; }
+    @keyframes fxFade { from { opacity: .45; } to { opacity: 0; } }
+    .shake { animation: shakeX .4s; }
+    @keyframes shakeX { 0%,100% { transform: translateX(0); } 20% { transform: translateX(-9px); } 40% { transform: translateX(8px); } 60% { transform: translateX(-6px); } 80% { transform: translateX(4px); } }
+    .paint-pot:active { transform: scale(.9) rotate(-4deg); }
+    .mix-eq { position: fixed; left: 50%; top: 11vh; transform: translateX(-50%); z-index: 66; pointer-events: none; display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 16px; font-size: 13px; background: rgba(15,23,42,.8); border: 2px solid #fbbf24; box-shadow: 0 10px 30px rgba(0,0,0,.5); color: #fff; font-family: 'Fredoka','Outfit',sans-serif; font-weight: 700; animation: eqIn 2.6s ease-out forwards; }
+    .mix-eq .dot { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 8px currentColor; }
+    @keyframes eqIn { 0% { opacity: 0; transform: translate(-50%, -20px) scale(.7); } 12% { opacity: 1; transform: translate(-50%, 0) scale(1.06); } 20% { transform: translate(-50%, 0) scale(1); } 85% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, 0); } }
+    /* animated village map */
+    .vm-cloud { animation: vmDrift linear infinite; }
+    @keyframes vmDrift { from { transform: translateX(-160px); } to { transform: translateX(1060px); } }
+    .vm-bird { animation: vmFly linear infinite; }
+    @keyframes vmFly { from { transform: translate(-60px, 0); } 50% { transform: translate(450px, -22px); } to { transform: translate(980px, 0); } }
+    .vm-spin { animation: vmSpin 6s linear infinite; }
+    @keyframes vmSpin { to { transform: rotate(360deg); } }
+    .vm-sway { animation: vmSway 3.4s ease-in-out infinite alternate; transform-box: fill-box; transform-origin: 50% 100%; }
+    @keyframes vmSway { from { transform: rotate(-3deg); } to { transform: rotate(3deg); } }
+    .vm-fly { animation: vmFirefly 4s ease-in-out infinite; }
+    @keyframes vmFirefly { 0%,100% { opacity: .1; transform: translate(0,0); } 50% { opacity: 1; transform: translate(12px,-14px); } }
+    .vm-water { stroke-dasharray: 14 22; animation: vmWater 3s linear infinite; }
+    @keyframes vmWater { to { stroke-dashoffset: -72; } }
+    .vm-march { animation: vmMarch 1.6s linear infinite; }
+    @keyframes vmMarch { to { stroke-dashoffset: -48; } }
+    .vm-sun { animation: vmSpin 40s linear infinite; }
+    .map-node-btn .node-title { opacity: 0; transition: opacity .2s; }
+    .map-node-btn:hover .node-title { opacity: 1; }
+    /* ===== Home screen redesign ===== */
+    #screen-home { --mx: 0; --my: 0; overflow: hidden; }
+    .hm-par { position: absolute; pointer-events: none; transition: transform .25s ease-out; }
+    .hm-wheel { width: min(72vh, 620px); height: min(72vh, 620px); border-radius: 50%; opacity: .5; animation: vmSpin 45s linear infinite;
+      background: conic-gradient(#ef4444, #f97316, #eab308, #84cc16, #22c55e, #14b8a6, #3b82f6, #6366f1, #a855f7, #ec4899, #ef4444);
+      -webkit-mask: radial-gradient(circle, transparent 50%, #000 51%, #000 71%, transparent 72%); mask: radial-gradient(circle, transparent 50%, #000 51%, #000 71%, transparent 72%);
+      filter: drop-shadow(0 0 28px rgba(250,204,21,.55)); }
+    .hm-blob { border-radius: 50%; filter: blur(46px); opacity: .45; animation: hmDrift 14s ease-in-out infinite alternate; }
+    @keyframes hmDrift { from { transform: translate(0,0) scale(1); } to { transform: translate(40px,-30px) scale(1.2); } }
+    .hm-logo { margin: 0; line-height: .92; font-weight: 400; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+    .hm-the { font-size: clamp(1.3rem, 3.2vw, 2.2rem); color: #fde68a; letter-spacing: .5em; text-shadow: 0 3px 0 #78350f, 0 6px 14px rgba(0,0,0,.6); padding-left: 6px; }
+    .hm-colour { display: flex; flex-wrap: nowrap; }
+    .hm-letter { display: inline-block; font-size: clamp(3.4rem, 9.5vw, 7rem); color: var(--c); cursor: pointer; pointer-events: auto;
+      -webkit-text-stroke: 3px #0f172a; paint-order: stroke fill; text-shadow: 0 7px 0 rgba(15,23,42,.9), 0 14px 22px rgba(0,0,0,.5);
+      animation: hmBob 2.6s ease-in-out infinite; animation-delay: calc(var(--i) * .17s); transition: transform .18s cubic-bezier(.3,1.8,.5,1), filter .2s; }
+    .hm-letter:hover { transform: translateY(-16px) rotate(-7deg) scale(1.18); filter: brightness(1.2) drop-shadow(0 0 16px var(--c)); animation-play-state: paused; }
+    .hm-letter:active { transform: translateY(2px) scale(.92); }
+    @keyframes hmBob { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+    .hm-code { font-size: clamp(3.8rem, 11vw, 8.2rem); line-height: .85; background: linear-gradient(100deg, #fde047 0%, #fb923c 35%, #f43f5e 55%, #fb923c 70%, #fde047 100%); background-size: 220% 100%;
+      -webkit-background-clip: text; background-clip: text; color: transparent; -webkit-text-stroke: 3px #0f172a; paint-order: stroke fill;
+      filter: drop-shadow(0 8px 0 rgba(15,23,42,.9)) drop-shadow(0 16px 22px rgba(0,0,0,.45)); animation: hmShine 4s linear infinite; }
+    @keyframes hmShine { to { background-position: -220% 0; } }
+    .hm-spectrum { height: 8px; width: min(100%, 420px); border-radius: 8px; background: linear-gradient(90deg, #ef4444, #f97316, #eab308, #22c55e, #3b82f6, #a855f7, #ef4444); background-size: 200% 100%; animation: hmFlow 3s linear infinite; box-shadow: 0 0 14px rgba(250,204,21,.5); }
+    @keyframes hmFlow { to { background-position: -200% 0; } }
+    .hm-play { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 14px; padding: 14px 44px 14px 18px; border-radius: 999px; font-size: clamp(1.8rem, 4vw, 2.6rem); color: #3b1d00;
+      background: linear-gradient(180deg, #fde047 0%, #f59e0b 100%); border: 4px solid #fff; box-shadow: 0 8px 0 #b45309, 0 16px 34px rgba(245,158,11,.55); transition: transform .15s, box-shadow .15s; animation: pulseGlow 2.1s infinite ease-in-out; }
+    .hm-play:hover { transform: translateY(-4px) scale(1.05); box-shadow: 0 12px 0 #b45309, 0 22px 44px rgba(245,158,11,.7); }
+    .hm-play:active { transform: translateY(5px); box-shadow: 0 2px 0 #b45309, 0 6px 14px rgba(245,158,11,.5); }
+    .hm-play::after { content: ''; position: absolute; top: 0; left: -60%; width: 40%; height: 100%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.7), transparent); transform: skewX(-20deg); animation: hmSweep 3s ease-in-out infinite; }
+    @keyframes hmSweep { 0% { left: -60%; } 55%,100% { left: 130%; } }
+    .hm-play-ico { width: 54px; height: 54px; border-radius: 50%; background: #3b1d00; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .hm-sec { font-size: 1.05rem; padding: 10px 20px; border-radius: 16px; color: #fff; background: rgba(15,23,42,.78); border: 2px solid rgba(255,255,255,.25); transition: transform .15s, border-color .15s, background .15s; backdrop-filter: blur(8px); }
+    .hm-sec:hover { transform: translateY(-3px) scale(1.04); border-color: #fbbf24; background: rgba(30,41,59,.92); }
+    .hm-dot { position: fixed; z-index: 70; width: 12px; height: 12px; border-radius: 50%; pointer-events: none; animation: hmBurst .75s ease-out forwards; }
+    @keyframes hmBurst { from { transform: translate(0,0) scale(1); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) scale(.2); opacity: 0; } }
+    .hm-bar { height: 8px; border-radius: 6px; background: rgba(255,255,255,.18); overflow: hidden; }
+    .hm-bar > div { height: 100%; width: 0; border-radius: 6px; background: linear-gradient(90deg, #fde047, #f97316); transition: width .8s ease; }
+    .map-nav-btn { position: absolute; bottom: 12px; z-index: 5; }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.2); border-radius: 8px; }
+    ::-webkit-scrollbar-thumb { background: rgba(251, 191, 36, 0.6); border-radius: 8px; }
+  </style>
+</head>
+<body class="vision-normal">
+
+  <!-- SVG Optical Color Matrices for Level 5 & Level 6 Vision Modes -->
+  <svg style="position:absolute; width:0; height:0;" aria-hidden="true">
+    <defs>
+      <filter id="protanopia-filter">
+        <feColorMatrix type="matrix" values="
+          0.567, 0.433, 0,     0, 0
+          0.558, 0.442, 0,     0, 0
+          0,     0.242, 0.758, 0, 0
+          0,     0,     0,     1, 0" />
+      </filter>
+      <filter id="deuteranopia-filter">
+        <feColorMatrix type="matrix" values="
+          0.625, 0.375, 0,   0, 0
+          0.7,   0.3,   0,   0, 0
+          0,     0.3,   0.7, 0, 0
+          0,     0,     0,   1, 0" />
+      </filter>
+      <filter id="tritanopia-filter">
+        <feColorMatrix type="matrix" values="
+          0.95, 0.05,  0,     0, 0
+          0,    0.433, 0.567, 0, 0
+          0,    0.475, 0.525, 0, 0
+          0,    0,     0,     1, 0" />
+      </filter>
+      <filter id="dog-filter">
+        <feColorMatrix type="matrix" values="
+          0.62, 0.38, 0,    0, 0
+          0.62, 0.38, 0,    0, 0
+          0,    0.15, 0.85, 0, 0
+          0,    0,    0,    1, 0" />
+      </filter>
+    </defs>
+  </svg>
+
+  <!-- Master 3D WebGL Canvas -->
+  <div id="webgl-viewport"></div>
+
+  <!-- 3D Floating Object Labels -->
+  <div id="world-labels-layer"></div>
+  <div id="ambient-orbs"></div>
+
+  <!-- ===================================================================== -->
+  <!-- SCREEN 1: HOME MENU                                                   -->
+  <!-- ===================================================================== -->
+  <div id="screen-home" class="ui-screen flex flex-col justify-between p-6 sm:p-10 bg-gradient-to-r from-slate-950/85 via-slate-900/50 to-transparent">
+    <!-- animated background layers (parallax follows the mouse) -->
+    <div class="hm-par" style="right:4vw; top:50%; margin-top:calc(min(72vh,620px) / -2); transform: translate(calc(var(--mx) * -22px), calc(var(--my) * -16px));"><div class="hm-wheel"></div></div>
+    <div class="hm-par hm-blob" style="width:340px;height:340px;left:-80px;bottom:-60px;background:#ef4444;transform: translate(calc(var(--mx) * 30px), calc(var(--my) * 20px));"></div>
+    <div class="hm-par hm-blob" style="width:300px;height:300px;right:30vw;top:-90px;background:#3b82f6;animation-delay:-5s;transform: translate(calc(var(--mx) * -26px), calc(var(--my) * 18px));"></div>
+    <div class="hm-par hm-blob" style="width:260px;height:260px;right:-60px;bottom:8vh;background:#eab308;animation-delay:-9s;transform: translate(calc(var(--mx) * 18px), calc(var(--my) * -22px));"></div>
+
+    <div class="hm-top flex flex-wrap justify-between items-center gap-3 pointer-auto" style="position:relative; z-index:2;">
+      <div></div>
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button onclick="openFreeColorLabModal()" class="btn-game glass-panel px-4 py-2.5 rounded-2xl text-sm text-emerald-300 border border-emerald-400/40">
+          <i data-ic="flask"></i> Free Color Mixer & Encyclopedia
+        </button>
+        <button onclick="openTrophyModal()" class="btn-game glass-panel px-4 py-2.5 rounded-2xl text-sm text-amber-300">
+          <i data-ic="trophy"></i> Trophy Room (<span id="home-trophies-count">0</span>/6)
+        </button>
+        <button onclick="openSettingsModal()" class="btn-game glass-panel px-4 py-2.5 rounded-2xl text-sm text-white">
+          <i data-ic="gear"></i> Settings
+        </button>
+      </div>
+    </div>
+
+    <div class="my-auto max-w-2xl space-y-5" style="position:relative; z-index:2;">
+      <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-amber-400/20 border border-amber-400/50 text-amber-300 font-heading font-bold text-xs sm:text-sm pointer-auto">
+        <span>✨ A fun 3D game to learn colours</span>
+      </div>
+
+      <h1 class="hm-logo font-game" aria-label="The Colour Code">
+        <span class="hm-the">THE</span>
+        <span class="hm-colour" aria-hidden="true">
+          <span class="hm-letter" style="--c:#ef4444;--i:0">C</span><span class="hm-letter" style="--c:#f97316;--i:1">O</span><span class="hm-letter" style="--c:#facc15;--i:2">L</span><span class="hm-letter" style="--c:#22c55e;--i:3">O</span><span class="hm-letter" style="--c:#38bdf8;--i:4">U</span><span class="hm-letter" style="--c:#c084fc;--i:5">R</span>
+        </span>
+        <span class="hm-code">CODE</span>
+      </h1>
+
+      <div class="hm-spectrum"></div>
+
+      <p class="text-slate-100 text-base sm:text-lg leading-relaxed max-w-md font-heading font-semibold" style="text-shadow:0 2px 8px rgba(0,0,0,.6)">
+        Mix paints, solve colour puzzles and bring the village back to life!
+      </p>
+
+      <div class="flex flex-col sm:flex-row sm:items-center flex-wrap gap-4 pt-1 pointer-auto">
+        <button onclick="openVillageMapScreen()" class="hm-play font-game">
+          <span class="hm-play-ico"><svg viewBox="0 0 24 24" width="28" height="28"><polygon points="7,4 21,12 7,20" fill="#fde047"/></svg></span>
+          <span>PLAY</span>
+        </button>
+        <div class="flex flex-wrap gap-3">
+          <button onclick="openWardrobeScreen()" class="hm-sec font-game"><i data-ic="shirt"></i> Character Studio</button>
+          <button onclick="openFreeColorLabModal()" class="hm-sec font-game" style="color:#6ee7b7"><i data-ic="flask"></i> Free Color Lab</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="flex justify-between items-end text-xs sm:text-sm text-slate-300 pointer-auto" style="position:relative; z-index:2;">
+      <div class="glass-panel px-4 py-2.5 rounded-2xl" style="min-width:230px">
+        <div class="flex items-center justify-between gap-3 mb-1.5"><span class="font-game text-amber-300 text-sm">⭐ Progress</span><span class="text-[10px] text-slate-400">Auto-Save On</span></div>
+        <div class="hm-bar"><div id="home-star-bar"></div></div>
+        <div class="mt-1.5"><strong id="home-stars-count" class="text-amber-400">0 / 18 ⭐</strong></div>
+      </div>
+      <div class="text-right leading-tight text-[10px] sm:text-[11px] font-bold" style="color:#000;">
+        <div>Made By:</div>
+        <div>Priyavrat Bhardwaj</div>
+        <div>590038894</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- SCREEN 2: 50/50 SIDE-BY-SIDE CHARACTER STUDIO                         -->
+  <!-- ===================================================================== -->
+  <div id="screen-wardrobe" class="ui-screen hidden flex-col justify-between p-5 sm:p-8 bg-gradient-to-r from-slate-950/90 via-slate-950/45 to-transparent">
+    <div class="flex justify-between items-center pointer-auto">
+      <div class="flex items-center gap-3">
+        <button onclick="openHomeScreen()" class="btn-game glass-light px-4 py-2 rounded-2xl text-sm">
+          ◀ Back to Home
+        </button>
+        <div class="glass-panel px-5 py-2 rounded-2xl">
+          <h2 class="font-title font-bold text-xl text-white"><i data-ic="shirt"></i> Character Studio</h2>
+        </div>
+      </div>
+      <button onclick="openVillageMapScreen()" class="btn-game px-6 py-2.5 rounded-2xl bg-amber-400 text-slate-950 text-sm shadow-lg">
+        Save & Go to 2D Village Map ▶
+      </button>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center my-auto w-full">
+      <!-- Left 5 Columns: Character Options -->
+      <div class="lg:col-span-5 glass-light p-6 rounded-3xl space-y-5 pointer-auto max-h-[78vh] overflow-y-auto">
+        <div>
+          <div class="text-xs font-heading font-bold uppercase text-amber-600 mb-2">1. Choose Character Preset</div>
+          <div class="grid grid-cols-2 gap-2.5">
+            <button id="preset-btn-0" onclick="applyHeroPreset(0)" class="p-3 rounded-2xl border-2 border-amber-500 bg-amber-50 text-left">
+              <div class="font-heading font-bold text-sm text-slate-900">Leo</div>
+              <div class="text-xs text-amber-700">Royal Gold Armor</div>
+            </button>
+            <button id="preset-btn-1" onclick="applyHeroPreset(1)" class="p-3 rounded-2xl border border-slate-200 bg-white text-left">
+              <div class="font-heading font-bold text-sm text-slate-900">Aria</div>
+              <div class="text-xs text-rose-600">Rose Gold Tunic</div>
+            </button>
+            <button id="preset-btn-2" onclick="applyHeroPreset(2)" class="p-3 rounded-2xl border border-slate-200 bg-white text-left">
+              <div class="font-heading font-bold text-sm text-slate-900">Maya</div>
+              <div class="text-xs text-sky-600">Sapphire Explorer</div>
+            </button>
+            <button id="preset-btn-3" onclick="applyHeroPreset(3)" class="p-3 rounded-2xl border border-slate-200 bg-white text-left">
+              <div class="font-heading font-bold text-sm text-slate-900">Noah</div>
+              <div class="text-xs text-emerald-600">Emerald Guardian</div>
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <div class="text-xs font-heading font-bold uppercase text-sky-600 mb-2">2. Metallic Outfit Finish</div>
+          <div class="grid grid-cols-3 gap-2">
+            <button onclick="setHeroOutfit('gold')" class="p-2.5 rounded-xl bg-gradient-to-br from-yellow-300 to-amber-500 text-slate-950 font-heading font-bold text-xs shadow">✨ Royal Gold</button>
+            <button onclick="setHeroOutfit('rosegold')" class="p-2.5 rounded-xl bg-gradient-to-br from-rose-300 to-amber-600 text-white font-heading font-bold text-xs shadow">🌸 Rose Gold</button>
+            <button onclick="setHeroOutfit('silver')" class="p-2.5 rounded-xl bg-gradient-to-br from-slate-100 to-slate-400 text-slate-900 font-heading font-bold text-xs shadow">⚪ Silver</button>
+            <button onclick="setHeroOutfit('obsidian')" class="p-2.5 rounded-xl bg-slate-900 text-amber-300 font-heading font-bold text-xs shadow">⚫ Black & Gold</button>
+            <button onclick="setHeroOutfit('cobalt')" class="p-2.5 rounded-xl bg-sky-600 text-white font-heading font-bold text-xs shadow">🔵 Cobalt Blue</button>
+            <button onclick="setHeroOutfit('emerald')" class="p-2.5 rounded-xl bg-emerald-600 text-white font-heading font-bold text-xs shadow">🟢 Emerald</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <div class="text-xs font-heading font-bold uppercase text-slate-500 mb-2">3. Human Skin Tone</div>
+            <div class="flex gap-2">
+              <button onclick="setHeroSkin('#f9e0d2')" class="w-8 h-8 rounded-full border-2 border-slate-400" style="background:#f9e0d2"></button>
+              <button onclick="setHeroSkin('#ecc0a3')" class="w-8 h-8 rounded-full border-2 border-slate-400" style="background:#ecc0a3"></button>
+              <button onclick="setHeroSkin('#d59b72')" class="w-8 h-8 rounded-full border-2 border-slate-400" style="background:#d59b72"></button>
+              <button onclick="setHeroSkin('#a66a44')" class="w-8 h-8 rounded-full border-2 border-slate-400" style="background:#a66a44"></button>
+              <button onclick="setHeroSkin('#6b3e26')" class="w-8 h-8 rounded-full border-2 border-slate-400" style="background:#6b3e26"></button>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs font-heading font-bold uppercase text-slate-500 mb-2">4. Hair & Crown</div>
+            <div class="flex gap-2">
+              <button onclick="cycleHeroHair()" class="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 font-heading font-bold text-xs text-slate-800">💇 Hair Color</button>
+              <button onclick="toggleHeroCrown()" class="px-3 py-2 rounded-xl bg-amber-100 hover:bg-amber-200 font-heading font-bold text-xs text-amber-900">👑 Crown</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right 7 Columns: Live 3D Character Stage -->
+      <div class="lg:col-span-7 flex flex-col items-center justify-end h-full min-h-[280px] pointer-events-none">
+        <div class="glass-panel px-6 py-3 rounded-full pointer-auto flex items-center gap-5 mt-auto">
+          <button onclick="rotateHeroPreview(-0.5)" class="w-9 h-9 rounded-full bg-white/15 hover:bg-amber-400 hover:text-slate-950 font-bold">⟲</button>
+          <div class="text-center">
+            <div id="wardrobe-hero-label" class="font-heading font-bold text-sm text-white">Leo • Royal Gold Armor</div>
+            <div class="text-xs text-amber-300">Drag on the right side to rotate 360°</div>
+          </div>
+          <button onclick="rotateHeroPreview(0.5)" class="w-9 h-9 rounded-full bg-white/15 hover:bg-amber-400 hover:text-slate-950 font-bold">⟳</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- SCREEN 3: 2D ILLUSTRATED VILLAGE MAP (LEVEL SELECTOR WITH 2D AVATAR)  -->
+  <!-- ===================================================================== -->
+  <div id="screen-map2d" class="ui-screen hidden flex-col justify-between p-4 sm:p-7 pointer-auto overflow-y-auto"
+       style="background: linear-gradient(135deg, #0c4a6e 0%, #065f46 50%, #1e293b 100%);">
+    <!-- Top Bar -->
+    <div class="flex flex-wrap justify-between items-center gap-3 z-20">
+      <div class="flex items-center gap-3">
+        <button onclick="openHomeScreen()" class="btn-game glass-light px-4 py-2 rounded-2xl text-xs sm:text-sm">
+          ◀ Home Menu
+        </button>
+        <div>
+          <span class="text-xs font-heading font-bold uppercase tracking-wider text-amber-300 block">Choose Your Adventure</span>
+          <h2 class="font-title font-bold text-2xl sm:text-3xl text-white">Colour Village Map</h2>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2.5">
+        <div class="glass-panel px-4 py-2 rounded-2xl text-xs sm:text-sm font-heading font-bold text-amber-300">
+          ⭐ Total Stars: <span id="map2d-stars">0 / 18</span>
+        </div>
+        <button onclick="openFreeColorLabModal()" class="btn-game glass-panel px-4 py-2 rounded-2xl text-xs sm:text-sm text-emerald-300 border border-emerald-400/40">
+          <i data-ic="flask"></i> Free Color Lab
+        </button>
+        <button onclick="openWardrobeScreen()" class="btn-game glass-light px-4 py-2 rounded-2xl text-xs sm:text-sm">
+          <i data-ic="shirt"></i> Character Studio
+        </button>
+      </div>
+    </div>
+
+    <!-- Center 2D Village Map Canvas + Selected Level Briefing Card -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center my-auto max-w-7xl mx-auto w-full py-2">
+      <!-- Left 8 Columns: 2D Illustrated SVG Village Map with Winding Path & Walking Avatar -->
+      <div class="lg:col-span-8 relative rounded-3xl overflow-hidden border-4 border-amber-300/80 shadow-2xl bg-emerald-800">
+        <svg id="village-2d-svg" viewBox="0 0 900 540" class="w-full h-auto block">
+          <defs>
+            <linearGradient id="grassGrad" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#86efac" />
+              <stop offset="55%" stop-color="#4ade80" />
+              <stop offset="100%" stop-color="#22c55e" />
+            </linearGradient>
+            <linearGradient id="riverGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#38bdf8" />
+              <stop offset="100%" stop-color="#0284c7" />
+            </linearGradient>
+          </defs>
+
+          <!-- Lush 2D Village Meadow Background -->
+          <rect width="900" height="540" fill="url(#grassGrad)" />
+
+          <!-- Decorative Hills & Rivers -->
+          <circle cx="140" cy="90" r="110" fill="#4ade80" opacity="0.6" />
+          <circle cx="760" cy="460" r="140" fill="#16a34a" opacity="0.35" />
+          <path d="M 0 310 Q 250 260, 460 330 T 900 280 L 900 345 Q 660 390, 450 380 T 0 365 Z" fill="url(#riverGrad)" opacity="0.85" />
+
+          <!-- Cute 2D Bridges over the River -->
+          <rect x="255" y="280" width="46" height="85" rx="8" fill="#d97706" stroke="#fef3c7" stroke-width="3" />
+          <rect x="645" y="295" width="46" height="85" rx="8" fill="#d97706" stroke="#fef3c7" stroke-width="3" />
+
+          <!-- Decorative 2D Village Trees -->
+          <g fill="#15803d">
+            <circle cx="75" cy="180" r="22" /><circle cx="95" cy="195" r="18" />
+            <circle cx="430" cy="95" r="24" /><circle cx="455" cy="110" r="18" />
+            <circle cx="820" cy="210" r="25" /><circle cx="540" cy="470" r="22" />
+          </g>
+
+          <!-- Animated village life -->
+          <g class="vm-sun" style="transform-origin: 820px 70px;">
+            <circle cx="820" cy="70" r="46" fill="#fde047" opacity="0.9" />
+            <g stroke="#fde047" stroke-width="5" stroke-linecap="round" opacity="0.8"><line x1="820" y1="8" x2="820" y2="22"/><line x1="820" y1="118" x2="820" y2="132"/><line x1="758" y1="70" x2="772" y2="70"/><line x1="868" y1="70" x2="882" y2="70"/><line x1="776" y1="26" x2="786" y2="36"/><line x1="854" y1="104" x2="864" y2="114"/><line x1="864" y1="26" x2="854" y2="36"/><line x1="786" y1="104" x2="776" y2="114"/></g>
+          </g>
+          <path class="vm-water" d="M 0 335 Q 250 285, 460 355 T 900 305" fill="none" stroke="#ffffff" stroke-width="3" stroke-linecap="round" opacity="0.55" />
+          <path class="vm-water" style="animation-duration:4.5s" d="M 0 350 Q 250 300, 460 370 T 900 320" fill="none" stroke="#bae6fd" stroke-width="2" stroke-linecap="round" opacity="0.5" />
+          <g class="vm-cloud" style="animation-duration:46s"><ellipse cx="0" cy="55" rx="46" ry="16" fill="#fff" opacity="0.9"/><ellipse cx="-24" cy="62" rx="26" ry="12" fill="#fff" opacity="0.9"/><ellipse cx="26" cy="63" rx="28" ry="12" fill="#fff" opacity="0.9"/></g>
+          <g class="vm-cloud" style="animation-duration:70s; animation-delay:-30s"><ellipse cx="0" cy="105" rx="38" ry="13" fill="#fff" opacity="0.75"/><ellipse cx="-20" cy="111" rx="22" ry="10" fill="#fff" opacity="0.75"/><ellipse cx="22" cy="112" rx="24" ry="10" fill="#fff" opacity="0.75"/></g>
+          <g class="vm-bird" style="animation-duration:22s"><path d="M0 130 q6 -8 12 0 q6 -8 12 0" fill="none" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round"/></g>
+          <g class="vm-bird" style="animation-duration:30s; animation-delay:-12s"><path d="M0 85 q6 -8 12 0 q6 -8 12 0" fill="none" stroke="#334155" stroke-width="2" stroke-linecap="round"/></g>
+          <g transform="translate(58,372)"><polygon points="-14,40 14,40 8,0 -8,0" fill="#fef3c7" stroke="#92400e" stroke-width="3"/><g class="vm-spin" style="transform-origin: 0px 0px;"><g stroke="#92400e" stroke-width="3"><rect x="-4" y="-34" width="8" height="34" fill="#fff"/><rect x="-4" y="0" width="8" height="34" fill="#fff"/><rect x="-34" y="-4" width="34" height="8" fill="#fff"/><rect x="0" y="-4" width="34" height="8" fill="#fff"/></g><circle r="5" fill="#92400e"/></g></g>
+          <g class="vm-sway"><rect x="598" y="52" width="8" height="26" fill="#78350f"/><circle cx="602" cy="44" r="22" fill="#16a34a"/><circle cx="614" cy="54" r="14" fill="#22c55e"/></g>
+          <g class="vm-sway" style="animation-delay:-1.4s"><rect x="852" y="420" width="8" height="26" fill="#78350f"/><circle cx="856" cy="412" r="22" fill="#15803d"/></g>
+          <g class="vm-sway" style="animation-delay:-2.2s"><rect x="120" y="108" width="8" height="24" fill="#78350f"/><circle cx="124" cy="100" r="20" fill="#16a34a"/></g>
+          <g fill="#f472b6"><circle cx="330" cy="470" r="5"/><circle cx="352" cy="482" r="4"/><circle cx="214" cy="500" r="5" fill="#fde047"/><circle cx="600" cy="500" r="5" fill="#fff"/><circle cx="760" cy="300" r="4" fill="#fde047"/></g>
+          <g fill="#fef08a"><circle class="vm-fly" cx="180" cy="250" r="3"/><circle class="vm-fly" style="animation-delay:-1s" cx="560" cy="250" r="3"/><circle class="vm-fly" style="animation-delay:-2s" cx="360" cy="480" r="3"/><circle class="vm-fly" style="animation-delay:-3s" cx="780" cy="260" r="3"/><circle class="vm-fly" style="animation-delay:-1.5s" cx="470" cy="60" r="3"/><circle class="vm-fly" style="animation-delay:-2.5s" cx="80" cy="270" r="3"/></g>
+
+          <!-- Winding Cobblestone Path Connecting Levels 1 -> 2 -> 3 -> 4 -> 5 -> 6 -->
+          <path d="M 135 430 C 210 430, 230 165, 280 165 C 350 165, 420 140, 495 140 C 580 140, 620 190, 725 170 C 815 155, 795 390, 675 415 C 555 440, 460 430, 395 415"
+                fill="none" stroke="#fef3c7" stroke-width="26" stroke-linecap="round" stroke-linejoin="round" />
+          <path d="M 135 430 C 210 430, 230 165, 280 165 C 350 165, 420 140, 495 140 C 580 140, 620 190, 725 170 C 815 155, 795 390, 675 415 C 555 440, 460 430, 395 415"
+                fill="none" stroke="#f59e0b" stroke-width="6" stroke-dasharray="12 12" stroke-linecap="round" class="vm-march" />
+
+          <!-- Dynamic Level Nodes Group -->
+          <g id="map2d-nodes-group"></g>
+
+          <!-- Animated 2D Character Marker that Walks from Node to Node -->
+          <g id="map2d-avatar" transform="translate(135, 418)" style="transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);">
+            <ellipse cx="0" cy="6" rx="18" ry="8" fill="rgba(0,0,0,0.35)" />
+            <g id="map2d-avatar-bob">
+            <path d="M -12 -18 L 12 -18 L 18 4 L -18 4 Z" fill="#dc2626" />
+            <rect x="-11" y="-24" width="22" height="24" rx="7" fill="#fbbf24" stroke="#ffffff" stroke-width="2" />
+            <circle id="map2d-avatar-head" cx="0" cy="-36" r="13" fill="#ecc0a3" stroke="#78350f" stroke-width="2" />
+            <circle cx="-4.5" cy="-38" r="2" fill="#0f172a" />
+            <circle cx="4.5" cy="-38" r="2" fill="#0f172a" />
+            <path d="M -4 -32 Q 0 -28, 4 -32" fill="none" stroke="#991b1b" stroke-width="2" stroke-linecap="round" />
+            <polygon points="-10,-46 -5,-54 0,-48 5,-54 10,-46" fill="#fde047" stroke="#b45309" stroke-width="1.5" />
+            <rect x="-24" y="-76" width="48" height="18" rx="9" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5" />
+            <text x="0" y="-63" text-anchor="middle" fill="#fbbf24" font-family="Outfit" font-weight="800" font-size="11">YOU</text>
+            </g>
+          </g>
+        </svg>
+        <button onclick="stepMapLevel(-1)" class="map-nav-btn btn-game glass-panel px-4 py-2 rounded-2xl text-sm text-white" style="left:12px">◀ Prev</button>
+        <button onclick="stepMapLevel(1)" class="map-nav-btn btn-game glass-panel px-4 py-2 rounded-2xl text-sm text-white" style="right:12px">Next ▶</button>
+        <div class="map-nav-btn glass-panel px-3 py-1.5 rounded-xl text-[11px] text-amber-200 font-heading font-bold" style="left:50%;transform:translateX(-50%)">Click a village • double-click to enter • ← → keys • Enter</div>
+      </div>
+
+      <!-- Right 4 Columns: Selected Level Story Briefing & "ENTER" Button -->
+      <div class="lg:col-span-4 glass-light p-6 rounded-3xl flex flex-col justify-between space-y-4">
+        <div>
+          <div class="flex justify-between items-center">
+            <span id="map2d-sel-code" class="px-3 py-1 rounded-full bg-amber-500 text-white font-heading font-bold text-xs">
+              LEVEL 1
+            </span>
+            <span id="map2d-sel-stars" class="text-amber-500 font-heading font-bold text-lg">☆☆☆</span>
+          </div>
+
+          <h3 id="map2d-sel-title" class="font-title font-bold text-2xl sm:text-3xl text-slate-900 mt-2">
+            The Alchemy Mill
+          </h3>
+          <div id="map2d-sel-topic" class="text-xs font-heading font-bold uppercase text-amber-700 mt-0.5">
+            Primary, Secondary & Real-Named Tertiary Colors
+          </div>
+
+          <p id="map2d-sel-desc" class="text-xs sm:text-sm text-slate-600 mt-3 leading-relaxed">
+            Pour two colors together in the Interactive Alchemy Dock to synthesize real pigments like Emerald Green, Vermilion, and Teal—and watch the 3D Cauldron fire a beam to restore the 3D Village Statues!
+          </p>
+
+          <div class="mt-4 p-3.5 rounded-2xl bg-slate-100 border border-slate-200 space-y-1.5 text-xs">
+            <div class="font-heading font-bold text-slate-800 uppercase">Missions:</div>
+            <div id="map2d-step-1" class="text-slate-700">1️⃣ Synthesize <strong>Emerald Green</strong> (Secondary)</div>
+            <div id="map2d-step-2" class="text-slate-700">2️⃣ Synthesize <strong>Vermilion</strong> (Warm Tertiary)</div>
+            <div id="map2d-step-3" class="text-slate-700">3️⃣ Synthesize <strong>Teal</strong> (Cool Tertiary)</div>
+          </div>
+        </div>
+
+        <div class="pt-2">
+          <button id="map2d-play-btn" onclick="launchSelected3DLevel()" class="pulse-cta btn-game w-full py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 text-lg shadow-xl">
+            <span>▶ ENTER</span>
+          </button>
+          <div id="map2d-lock-msg" class="hidden text-center py-3 px-4 rounded-2xl bg-slate-200 text-slate-600 font-heading font-bold text-xs">
+            🔒 Complete the previous level to unlock this village area!
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="text-center text-xs sm:text-sm text-amber-200 font-medium">
+      💡 Click any unlocked building on the <strong>2D Village Map</strong> to walk your character there, then click <strong>ENTER</strong>!
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- SCREEN 4: HYBRID 3D WORLD + INTERACTIVE COLOR ALCHEMY STUDIO DOCK     -->
+  <!-- ===================================================================== -->
+  <div id="screen-play3d" class="ui-screen hidden flex-col justify-between p-3 sm:p-5">
+    <!-- Top Story Mission Bar -->
+    <div class="flex flex-wrap justify-between items-start gap-2.5 z-20">
+      <!-- Left: Back to 2D Map & Level Title -->
+      <div class="glass-panel px-4 py-2.5 rounded-2xl flex items-center gap-3 pointer-auto">
+        <button onclick="openVillageMapScreen()" class="btn-game bg-white/15 hover:bg-amber-400 hover:text-slate-950 text-white px-3.5 py-1.5 rounded-xl text-xs">
+          🗺️ 2D Village Map
+        </button>
+        <div class="h-5 w-px bg-white/20"></div>
+        <div>
+          <div id="play3d-level-badge" class="text-[10px] font-heading font-bold uppercase text-amber-400">LEVEL 1 • STAGE 1 OF 3</div>
+          <div id="play3d-level-title" class="font-title font-bold text-sm sm:text-base text-white">The Alchemy Mill</div>
+        </div>
+      </div>
+
+      <!-- Center: Current Stage Goal Banner -->
+      <div class="glass-light px-5 py-2.5 rounded-3xl max-w-xl w-full text-center pointer-auto border-2 border-amber-400 shadow-2xl mx-auto">
+        <div class="flex flex-wrap items-center justify-center gap-2 mb-1">
+          <span id="play3d-step-pill" class="px-2.5 py-0.5 rounded-full bg-amber-500 text-white font-heading font-bold text-[11px]">
+            STAGE 1 OF 3
+          </span>
+          <button onclick="autoWalkHeroToCenter()" class="px-2.5 py-0.5 rounded-full bg-sky-100 hover:bg-sky-200 text-sky-900 font-heading font-bold text-[11px] cursor-pointer transition">
+            🚶 Auto-Walk Hero to Shrine
+          </button>
+          <button onclick="openFreeColorLabModal()" class="px-2.5 py-0.5 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-heading font-bold text-[11px] cursor-pointer transition">
+            🧪 Free Mix Encyclopedia
+          </button>
+        </div>
+        <div id="play3d-objective-text" class="font-heading font-extrabold text-xs sm:text-sm text-slate-900">
+          Goal: Mix the two Primary colors that create EMERALD GREEN!
+        </div>
+        <!-- 3-Stage Progress Bar -->
+        <div class="grid grid-cols-3 gap-2 mt-1.5">
+          <div id="play3d-prog-1" class="h-2 rounded-full bg-amber-400"></div>
+          <div id="play3d-prog-2" class="h-2 rounded-full bg-slate-300"></div>
+          <div id="play3d-prog-3" class="h-2 rounded-full bg-slate-300"></div>
+        </div>
+      </div>
+
+      <!-- Right: 3D Mini-Map Radar -->
+      <div class="glass-panel p-2 rounded-2xl hidden sm:flex flex-col items-center pointer-auto">
+        <canvas id="radar-3d" width="86" height="86" class="rounded-full bg-slate-950 border-2 border-amber-400"></canvas>
+        <span class="text-[9px] font-heading font-bold text-amber-300 mt-1">3D RADAR</span>
+      </div>
+    </div>
+
+    <!-- Bottom Row: Compact 3D Walk Controls (Left) + Interactive Color Alchemy Dock (Center) -->
+    <div class="flex flex-col lg:flex-row items-center lg:items-end justify-between gap-3 w-full mt-auto z-20">
+      <!-- Left: Optional 3D Walk Pad -->
+      <div class="glass-panel p-2.5 rounded-2xl pointer-auto hidden xl:flex flex-col items-center gap-1" onmouseleave="setDpad(0,0)">
+        <span class="text-[9px] font-heading font-bold text-amber-300">3D WALK (WASD)</span>
+        <button onpointerdown="setDpad(0,1)" onpointerup="setDpad(0,0)" onpointerleave="setDpad(0,0)" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-amber-400 hover:text-slate-950 font-bold text-xs">▲</button>
+        <div class="flex gap-1">
+          <button onpointerdown="setDpad(-1,0)" onpointerup="setDpad(0,0)" onpointerleave="setDpad(0,0)" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-amber-400 hover:text-slate-950 font-bold text-xs">◀</button>
+          <button onclick="triggerHeroJump3D()" class="w-8 h-8 rounded-lg bg-amber-400/25 border border-amber-400 text-amber-300 font-bold text-xs" title="Jump">⬆</button>
+          <button onpointerdown="setDpad(1,0)" onpointerup="setDpad(0,0)" onpointerleave="setDpad(0,0)" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-amber-400 hover:text-slate-950 font-bold text-xs">▶</button>
+        </div>
+        <button onpointerdown="setDpad(0,-1)" onpointerup="setDpad(0,0)" onpointerleave="setDpad(0,0)" class="w-8 h-8 rounded-lg bg-white/15 hover:bg-amber-400 hover:text-slate-950 font-bold text-xs">▼</button>
+      </div>
+
+      <!-- Center: THE INTERACTIVE COLOR ALCHEMY DOCK (Direct Click-to-Pour, Wheel Spinner, Goggles, etc.) -->
+      <div id="score-hud" class="glass-panel rounded-2xl border-2 border-sky-400/60 px-3 py-2" style="position:absolute; left:12px; top:150px; width:150px; z-index:25; pointer-events:none;">
+        <div class="font-heading font-extrabold text-[11px] text-sky-300">SCORE</div>
+        <div id="hud-score" class="font-title font-bold text-2xl text-white leading-none">0</div>
+        <div id="hud-combo" class="text-[11px] text-orange-300 font-bold mt-1">🔥 Combo x0</div>
+        <div class="mt-1.5 h-1.5 rounded bg-slate-700 overflow-hidden"><div id="hud-time" class="h-full bg-emerald-400" style="width:100%"></div></div>
+        <div class="text-[9px] text-slate-300 mt-0.5">⚡ Solve fast for bonus points</div>
+      </div>
+
+      <div id="hint-box" class="pointer-auto glass-panel rounded-2xl border-2 border-amber-400/70 shadow-2xl" style="position:absolute; right:12px; top:150px; width:min(270px, 62vw); z-index:25;">
+        <button onclick="toggleHintBox()" class="w-full flex items-center justify-between px-3 py-2 font-heading font-extrabold text-xs text-amber-300">
+          <span>💡 Hints <span title="Tip: press H for the next hint" id="hint-stage-tag" class="text-slate-300 font-bold"></span></span>
+          <span id="hint-toggle-icon">▼</span>
+        </button>
+        <div id="hint-body" class="px-3 pb-3 text-[12px] leading-snug text-slate-100">
+          <div id="hint-text" class="mb-2"></div>
+          <div class="flex items-center justify-between gap-2">
+            <span id="hint-dots" class="text-amber-300 text-sm tracking-widest"></span>
+            <button id="hint-more-btn" onclick="revealNextHint()" class="btn-game px-3 py-1 rounded-lg bg-amber-400 text-slate-950 text-[11px]">Need more help?</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="interactive-alchemy-dock" class="glass-panel rounded-3xl p-4 sm:p-5 max-w-4xl w-full mx-auto pointer-auto border-2 border-amber-400/70 shadow-2xl">
+        <!-- Populated dynamically per Level (1 to 6) -->
+      </div>
+
+      <!-- Right: Camera Tip -->
+      <div class="glass-panel p-3 rounded-2xl pointer-auto hidden xl:block text-[11px] text-slate-300 space-y-1 max-w-[170px]">
+        <div class="font-heading font-bold text-amber-400 uppercase">3D View Tip</div>
+        <div><strong>Drag 3D Sky:</strong> Orbit Camera</div>
+        <div><strong>Scroll:</strong> Zoom In/Out</div>
+        <div><strong>WASD:</strong> Walk Hero</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- FREE COLOR MIXER & ENCYCLOPEDIA MODAL (Accessible anytime!)           -->
+  <!-- ===================================================================== -->
+  <div id="modal-freelab" class="ui-screen hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md pointer-auto z-40">
+    <div class="glass-light rounded-3xl max-w-4xl w-full p-6 border-4 border-amber-400 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+        <div>
+          <span class="text-xs font-heading font-bold uppercase text-emerald-700">Curiosity & Discovery Lab</span>
+          <h3 class="font-title font-bold text-2xl sm:text-3xl text-slate-900">🧪 Free Color Mixer & Real Pigment Encyclopedia</h3>
+        </div>
+        <button onclick="closeFreeColorLabModal()" class="btn-game bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-xs">✕ Close Lab</button>
+      </div>
+
+      <p class="text-xs sm:text-sm text-slate-600">
+        Click <strong>any two paint bottles below</strong> to mix them together and discover their <strong>real-world artist & engineering color name</strong>, category, hex code, and how they are formed!
+      </p>
+
+      <!-- Free Mixer Pots -->
+      <div id="freelab-pots-grid" class="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-9 gap-2.5"></div>
+
+      <!-- Free Mixer Live Result Card -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-4 items-center p-4 rounded-2xl bg-slate-900 text-white">
+        <div class="md:col-span-5 flex items-center justify-center gap-3">
+          <div class="text-center">
+            <div id="freelab-slot1-swatch" class="w-14 h-14 rounded-2xl border-2 border-white mx-auto shadow-lg" style="background:#ef4444"></div>
+            <div id="freelab-slot1-name" class="text-xs font-heading font-bold mt-1 text-amber-300">Red</div>
+          </div>
+          <span class="text-2xl font-bold text-amber-400">+</span>
+          <div class="text-center">
+            <div id="freelab-slot2-swatch" class="w-14 h-14 rounded-2xl border-2 border-white mx-auto shadow-lg" style="background:#f97316"></div>
+            <div id="freelab-slot2-name" class="text-xs font-heading font-bold mt-1 text-amber-300">Orange</div>
+          </div>
+          <span class="text-2xl font-bold text-amber-400">=</span>
+          <div class="text-center">
+            <div id="freelab-res-swatch" class="w-16 h-16 rounded-2xl border-4 border-amber-300 mx-auto shadow-xl" style="background:#ff3b1f"></div>
+            <div id="freelab-res-hex" class="text-[11px] font-mono text-slate-300 mt-1">#FF3B1F</div>
+          </div>
+        </div>
+
+        <div class="md:col-span-7 space-y-1.5 text-left border-t md:border-t-0 md:border-l border-white/15 pt-3 md:pt-0 md:pl-5">
+          <div class="flex items-center gap-2">
+            <span id="freelab-res-badge" class="px-2.5 py-0.5 rounded-full bg-amber-400 text-slate-950 font-heading font-bold text-xs">Tertiary Color</span>
+            <span id="freelab-res-formula" class="text-xs text-slate-300 font-heading font-bold">Red + Orange</span>
+          </div>
+          <h4 id="freelab-res-title" class="font-title font-bold text-2xl text-amber-300">Vermilion</h4>
+          <p id="freelab-res-fact" class="text-xs sm:text-sm text-slate-200 leading-relaxed">
+            Mixing Primary Red with Secondary Orange creates Vermilion (Cinnabar)—a vivid warm tertiary pigment prized by painters and safety engineers!
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick Reference Table of Real Named Mixtures -->
+      <div>
+        <div class="font-heading font-bold text-xs uppercase text-slate-500 mb-2">All Real Color Mixtures Reference (Click any row to test!):</div>
+        <div id="freelab-encyclopedia-list" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-48 overflow-y-auto pr-1"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- LEVEL VICTORY MODAL                                                   -->
+  <!-- ===================================================================== -->
+  <div id="modal-victory" class="ui-screen hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md pointer-auto z-40">
+    <div class="glass-light rounded-3xl max-w-lg w-full p-7 text-center border-4 border-amber-400 space-y-4">
+      <div class="text-5xl">🏆</div>
+      <div id="victory-badge-pill" class="text-xs font-heading font-bold uppercase px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 inline-block">
+        3D Level Complete • ⭐⭐⭐ Earned!
+      </div>
+      <h2 id="victory-title" class="font-title font-bold text-3xl text-slate-900">Level 1 Complete!</h2>
+      <div id="victory-rank" class="font-heading font-extrabold text-sm text-amber-600"></div>
+      <p id="victory-desc" class="text-sm text-slate-600 leading-relaxed">
+        You synthesized Emerald Green, Vermilion, and Teal and restored all 3 village statues!
+      </p>
+      <div id="victory-bonus-box" class="p-3.5 rounded-2xl bg-slate-900 text-white flex items-center justify-around text-xs font-heading font-bold">
+        <div>🎯 Accuracy: <span id="victory-accuracy" class="text-emerald-400">Flawless (0 Mistakes)</span></div>
+        <div>🪙 Reward: <span id="victory-coins" class="text-amber-300">+250 Gold Coins</span></div>
+        <div>🏅 Score: <span id="victory-score" class="text-sky-300">0</span></div>
+      </div>
+      <div class="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-xs sm:text-sm font-heading font-bold text-amber-900" id="victory-unlock-note">
+        🌟 All 6 Village Levels are unlocked on the 2D Map—pick any workshop next!
+      </div>
+      <div class="flex gap-3 pt-2">
+        <button onclick="replayCurrent3DLevel()" class="btn-game px-5 py-4 rounded-2xl bg-slate-200 hover:bg-slate-300 text-slate-800 text-sm">
+          🔄 Replay
+        </button>
+        <button onclick="closeVictoryTo2DMap()" class="pulse-cta btn-game flex-1 py-4 rounded-2xl bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 text-base shadow-xl">
+          🗺️ Continue on 2D Village Map ▶
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- INTERACTIVE 12-HUE COLOR WHEEL & THEORY COMPASS MODAL                 -->
+  <!-- ===================================================================== -->
+  <div id="modal-wheel-guide" class="ui-screen hidden items-center justify-center p-4 bg-slate-950/85 backdrop-blur-md pointer-auto z-40">
+    <div class="glass-light rounded-3xl max-w-4xl w-full p-6 border-4 border-sky-400 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center border-b border-slate-200 pb-3">
+        <div>
+          <span class="text-xs font-heading font-bold uppercase text-sky-700">Interactive Design Reference</span>
+          <h3 class="font-title font-bold text-2xl sm:text-3xl text-slate-900">🎡 12-Hue Color Wheel & Vision Science Guide</h3>
+        </div>
+        <button onclick="closeWheelGuideModal()" class="btn-game bg-rose-600 hover:bg-rose-500 text-white px-4 py-2 rounded-xl text-xs">✕ Close Guide</button>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5 items-center">
+        <!-- Left 5 Cols: Interactive SVG 12-Hue Color Wheel -->
+        <div class="lg:col-span-5 flex flex-col items-center bg-slate-900 p-4 rounded-2xl text-white">
+          <div class="text-xs font-heading font-bold uppercase text-amber-300 mb-2">Click any slice on the 12-Hue Wheel:</div>
+          <svg id="guide-wheel-svg" viewBox="-135 -135 270 270" class="w-56 h-56"></svg>
+          <div id="guide-slice-readout" class="mt-3 text-center p-2.5 rounded-xl bg-slate-800 border border-white/10 w-full">
+            <div class="font-heading font-bold text-sm text-amber-300" id="guide-slice-title">Red (0° • Primary)</div>
+            <div class="text-xs text-slate-300 mt-0.5" id="guide-slice-desc">Opposite Complement: Green (180°) • Analogous Neighbors: Magenta & Vermilion</div>
+          </div>
+        </div>
+
+        <!-- Right 7 Cols: Concise Visual Cards for Harmonies, Tints/Tones/Shades & Vision -->
+        <div class="lg:col-span-7 space-y-3 text-xs sm:text-sm text-slate-700">
+          <div class="p-3.5 rounded-2xl bg-amber-50 border border-amber-200">
+            <div class="font-heading font-bold text-amber-900 uppercase text-xs mb-1">1. Primary, Secondary & Tertiary Pigments</div>
+            <div>• <strong>Primary (3):</strong> Red, Yellow, Blue — pure base pigments that cannot be mixed from others.</div>
+            <div>• <strong>Secondary (3):</strong> Orange (R+Y), Green (Y+B), Purple (B+R) — mixed from two Primaries.</div>
+            <div>• <strong>Tertiary (6):</strong> Mixed from a Primary + adjacent Secondary: <em>Vermilion</em> (R+O), <em>Amber Gold</em> (Y+O), <em>Chartreuse</em> (Y+G), <em>Teal</em> (B+G), <em>Indigo</em> (B+P), and <em>Magenta</em> (R+P).</div>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-sky-50 border border-sky-200">
+            <div class="font-heading font-bold text-sky-900 uppercase text-xs mb-1">2. Hue, Saturation, Value (Tints, Tones & Shades)</div>
+            <div class="grid grid-cols-3 gap-2 mt-1.5 text-center font-heading font-bold text-xs">
+              <div class="p-2 rounded-xl bg-white border border-sky-200 text-sky-900">
+                <div class="w-6 h-6 rounded-full mx-auto mb-1 border border-slate-300" style="background:#7dd3fc"></div>
+                TINT = Hue + White<br><span class="font-normal text-[11px] text-slate-500">Raises Value (Lighter)</span>
+              </div>
+              <div class="p-2 rounded-xl bg-white border border-sky-200 text-sky-900">
+                <div class="w-6 h-6 rounded-full mx-auto mb-1 border border-slate-300" style="background:#6b8e78"></div>
+                TONE = Hue + Grey<br><span class="font-normal text-[11px] text-slate-500">Softens Saturation</span>
+              </div>
+              <div class="p-2 rounded-xl bg-white border border-sky-200 text-sky-900">
+                <div class="w-6 h-6 rounded-full mx-auto mb-1 border border-slate-300" style="background:#1e3a8a"></div>
+                SHADE = Hue + Black<br><span class="font-normal text-[11px] text-slate-500">Lowers Value (Darker)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200">
+            <div class="font-heading font-bold text-emerald-900 uppercase text-xs mb-1">3. Color Wheel Harmonies & 60-30-10 Rule</div>
+            <div>• <strong>Complementary (180°):</strong> Directly opposite on the wheel (e.g., Blue ↔ Orange, Red ↔ Green). High contrast!</div>
+            <div>• <strong>Analogous (Adjacent):</strong> Side-by-side neighbors on the wheel (e.g., Yellow, Chartreuse, Green).</div>
+            <div>• <strong>Triadic (120° Triangle):</strong> 3 equally spaced hues (e.g., Orange, Green, Purple).</div>
+            <div>• <strong>60-30-10 Rule:</strong> 60% calm Dominant base, 30% Secondary structure, 10% vivid Focal Accent.</div>
+          </div>
+
+          <div class="p-3.5 rounded-2xl bg-purple-50 border border-purple-200">
+            <div class="font-heading font-bold text-purple-900 uppercase text-xs mb-1">4. Human Color-Blindness & Animal Vision</div>
+            <div>• <strong>Protanopia / Deuteranopia:</strong> Reduced Red or Green cone sensitivity; high-luminance Blues and Golden-Yellows remain clear.</div>
+            <div>• <strong>Tritanopia:</strong> Blue-Yellow sensitivity loss; rich Magenta/Crimson stands out clearly.</div>
+            <div>• <strong>Animal Eyes:</strong> Dogs see Blue & Yellow; Honeybees see Ultraviolet (UV) purples; Pit Vipers sense warm Infrared heat!</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===================================================================== -->
+  <!-- GENERIC MODAL (Trophies & Sound Settings)                             -->
+  <!-- ===================================================================== -->
+  <div id="modal-generic" class="ui-screen hidden items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md pointer-auto z-40">
+    <div class="glass-panel rounded-3xl max-w-3xl w-full p-6 border-2 border-amber-400/50 space-y-4">
+      <div class="flex justify-between items-center border-b border-white/15 pb-3">
+        <h3 id="modal-generic-title" class="font-title font-bold text-2xl text-amber-400">Modal</h3>
+        <button onclick="closeGenericModal()" class="btn-game bg-rose-600 hover:bg-rose-500 text-white px-4 py-1.5 rounded-xl text-xs"><i data-ic="x"></i> Close</button>
+      </div>
+      <div id="modal-generic-body" class="space-y-4 text-sm text-slate-200 max-h-[75vh] overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- Floating Notification Toast -->
+  <div id="game-toast" class="fixed top-5 left-1/2 -translate-x-1/2 z-50 hidden pointer-events-none">
+    <div class="glass-light px-6 py-3 rounded-full flex items-center gap-3 border-2 border-amber-400 shadow-2xl">
+      <span id="toast-icon" class="text-2xl">✨</span>
+      <span id="toast-text" class="font-heading font-bold text-sm sm:text-base text-slate-900">Notification</span>
+    </div>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. REAL COLOR PIGMENT ENCYCLOPEDIA & 6 HYBRID 3D STORY LEVELS
+    // =========================================================================
+    const BASE_POTS = [
+      { id: 'Red',    name: 'Red',    role: 'Primary',   hex: '#ef4444', color: 0xef4444 },
+      { id: 'Yellow', name: 'Yellow', role: 'Primary',   hex: '#eab308', color: 0xeab308 },
+      { id: 'Blue',   name: 'Blue',   role: 'Primary',   hex: '#3b82f6', color: 0x3b82f6 },
+      { id: 'Orange', name: 'Orange', role: 'Secondary', hex: '#f97316', color: 0xf97316 },
+      { id: 'Green',  name: 'Green',  role: 'Secondary', hex: '#22c55e', color: 0x22c55e },
+      { id: 'Purple', name: 'Purple', role: 'Secondary', hex: '#9333ea', color: 0x9333ea },
+      { id: 'White',  name: 'White',  role: 'Tint Base', hex: '#f8fafc', color: 0xf8fafc },
+      { id: 'Grey',   name: 'Grey',   role: 'Tone Base', hex: '#94a3b8', color: 0x94a3b8 },
+      { id: 'Black',  name: 'Black',  role: 'Shade Base',hex: '#1e293b', color: 0x1e293b }
+    ];
+
+    // Comprehensive Real-World Pigment Dictionary (Sorted Key "ColorA+ColorB")
+    const REAL_PIGMENT_DICTIONARY = {
+      // Primary + Primary = Secondary Colors
+      'Red+Yellow':    { name: 'Tangerine Orange', type: 'Secondary Color', hex: '#f97316', color: 0xf97316, fact: 'Mixing two Primary colors (Red + Yellow) creates Secondary Tangerine Orange!' },
+      'Blue+Yellow':   { name: 'Emerald Green',    type: 'Secondary Color', hex: '#10b981', color: 0x10b981, fact: 'Mixing Primary Yellow and Primary Blue creates lush Secondary Emerald Green!' },
+      'Blue+Red':      { name: 'Royal Purple',     type: 'Secondary Color', hex: '#9333ea', color: 0x9333ea, fact: 'Mixing Primary Red and Primary Blue creates regal Secondary Royal Purple!' },
+
+      // Primary + Adjacent Secondary = The 6 Real-Named Tertiary Colors
+      'Orange+Red':    { name: 'Vermilion',        type: 'Tertiary Color',  hex: '#ff3b1f', color: 0xff3b1f, fact: 'Mixing Primary Red + Secondary Orange creates Vermilion (also called Cinnabar)—a fiery warm tertiary pigment!' },
+      'Orange+Yellow': { name: 'Amber Gold',       type: 'Tertiary Color',  hex: '#fbbf24', color: 0xfbbf24, fact: 'Mixing Primary Yellow + Secondary Orange creates radiant Amber Gold (Marigold)!' },
+      'Green+Yellow':  { name: 'Chartreuse',       type: 'Tertiary Color',  hex: '#84cc16', color: 0x84cc16, fact: 'Mixing Primary Yellow + Secondary Green creates vivid Chartreuse (Lime Blossom)!' },
+      'Blue+Green':    { name: 'Teal',             type: 'Tertiary Color',  hex: '#0d9488', color: 0x0d9488, fact: 'Mixing Primary Blue + Secondary Green creates deep oceanic Teal (Turquoise)!' },
+      'Blue+Purple':   { name: 'Indigo',           type: 'Tertiary Color',  hex: '#4f46e5', color: 0x4f46e5, fact: 'Mixing Primary Blue + Secondary Purple creates twilight Indigo (Ultramarine Violet)!' },
+      'Purple+Red':    { name: 'Magenta',          type: 'Tertiary Color',  hex: '#db2777', color: 0xdb2777, fact: 'Mixing Primary Red + Secondary Purple creates vibrant Magenta (Royal Crimson)!' },
+
+      // Tints (Hue + White = Lighter High-Value Pastel)
+      'Blue+White':    { name: 'Sky Blue Tint',    type: 'Tint (Hue + White)', hex: '#7dd3fc', color: 0x7dd3fc, fact: 'Adding White to Blue increases its Value (Lightness), creating a Pastel Sky Blue Tint!' },
+      'Red+White':     { name: 'Rose Pink Tint',   type: 'Tint (Hue + White)', hex: '#fda4af', color: 0xfda4af, fact: 'Adding White to Red raises its Value to create a soft Rose Pink Tint!' },
+      'Green+White':   { name: 'Mint Pastel Tint', type: 'Tint (Hue + White)', hex: '#86efac', color: 0x86efac, fact: 'Adding White to Green creates a refreshing Mint Pastel Tint!' },
+      'Orange+White':  { name: 'Peach Pastel Tint',type: 'Tint (Hue + White)', hex: '#fdba74', color: 0xfdba74, fact: 'Adding White to Orange creates a warm Peach Tint!' },
+      'Purple+White':  { name: 'Lavender Tint',    type: 'Tint (Hue + White)', hex: '#d8b4fe', color: 0xd8b4fe, fact: 'Adding White to Purple creates a gentle Lavender Tint!' },
+      'White+Yellow':  { name: 'Lemon Cream Tint', type: 'Tint (Hue + White)', hex: '#fef08a', color: 0xfef08a, fact: 'Adding White to Yellow creates a soft Lemon Cream Tint!' },
+
+      // Tones (Hue + Grey = Muted Sophisticated Tone)
+      'Blue+Grey':     { name: 'Slate Blue Tone',  type: 'Tone (Hue + Grey)',  hex: '#64748b', color: 0x64748b, fact: 'Adding Grey to a pure Hue lowers its Saturation, creating a balanced Slate Blue Tone!' },
+      'Green+Grey':    { name: 'Sage Green Tone',  type: 'Tone (Hue + Grey)',  hex: '#6b8e78', color: 0x6b8e78, fact: 'Adding Grey to Green softens its intensity into an architectural Sage Green Tone!' },
+      'Grey+Red':      { name: 'Terracotta Tone',  type: 'Tone (Hue + Grey)',  hex: '#b85d57', color: 0xb85d57, fact: 'Adding Grey to Red creates an earthy Terracotta Tone!' },
+
+      // Shades (Hue + Black = Darker Low-Value Shade)
+      'Black+Blue':    { name: 'Midnight Navy Shade', type: 'Shade (Hue + Black)', hex: '#1e3a8a', color: 0x1e3a8a, fact: 'Adding Black to Blue lowers its Value (Darkness), creating a Deep Midnight Navy Shade!' },
+      'Black+Red':     { name: 'Burgundy Maroon Shade',type: 'Shade (Hue + Black)', hex: '#7f1d1d', color: 0x7f1d1d, fact: 'Adding Black to Red creates a rich dark Burgundy Maroon Shade!' },
+      'Black+Green':   { name: 'Forest Pine Shade',   type: 'Shade (Hue + Black)', hex: '#14532d', color: 0x14532d, fact: 'Adding Black to Green creates a deep Forest Pine Shade!' },
+      'Black+Purple':  { name: 'Obsidian Plum Shade', type: 'Shade (Hue + Black)', hex: '#3b0764', color: 0x3b0764, fact: 'Adding Black to Purple creates a dramatic Obsidian Plum Shade!' },
+      'Black+Yellow':  { name: 'Olive Bronze Shade',  type: 'Shade (Hue + Black)', hex: '#713f12', color: 0x713f12, fact: 'Adding Black to Yellow shifts it into a rich Olive Bronze Shade!' },
+
+      // Opposite / Complementary Neutralizations
+      'Green+Red':     { name: 'Russet Earth Umber',  type: 'Complementary Neutral', hex: '#78350f', color: 0x78350f, fact: 'Mixing opposite Complementary colors (Red + Green) cancels out their chroma into warm Russet Umber!' },
+      'Blue+Orange':   { name: 'Cinder Slate',        type: 'Complementary Neutral', hex: '#475569', color: 0x475569, fact: 'Mixing opposite Complementary colors (Blue + Orange) creates balanced Cinder Slate!' },
+      'Purple+Yellow': { name: 'ochre Taupe',         type: 'Complementary Neutral', hex: '#854d0e', color: 0x854d0e, fact: 'Mixing opposite Complementary colors (Yellow + Purple) creates Ochre Taupe!' }
+    };
+
+    // Helper to resolve any 2 colors selected by the user
+    function resolveColorMixture(c1Name, c2Name) {
+      const p1 = BASE_POTS.find(p => p.id === c1Name) || BASE_POTS[0];
+      const p2 = BASE_POTS.find(p => p.id === c2Name) || BASE_POTS[1];
+      if (c1Name === c2Name) {
+        return {
+          name: `Pure ${p1.name}`,
+          type: `${p1.role} Color`,
+          hex: p1.hex,
+          color: p1.color,
+          fact: `Pouring two parts of ${p1.name} keeps its pure 100% ${p1.role.toLowerCase()} pigment!`
+        };
+      }
+      const key = [c1Name, c2Name].sort().join('+');
+      if (REAL_PIGMENT_DICTIONARY[key]) {
+        return REAL_PIGMENT_DICTIONARY[key];
+      }
+      // Fallback average blend with descriptive name
+      const col1 = new THREE.Color(p1.color);
+      const col2 = new THREE.Color(p2.color);
+      const mixed = col1.clone().lerp(col2, 0.5);
+      const hexStr = '#' + mixed.getHexString();
+      return {
+        name: `${p1.name}-${p2.name} Blend`,
+        type: 'Custom Alloy Blend',
+        hex: hexStr,
+        color: mixed.getHex(),
+        fact: `A custom 50/50 pigment blend combining ${p1.name} and ${p2.name}!`
+      };
+    }
+
+    const LEVELS = [
+      {
+        id: 1,
+        code: 'LEVEL 1',
+        title: 'The Alchemy Mill',
+        topic: 'Primary, Secondary & Real-Named Tertiary Colors',
+        desc: 'Pour two paint bottles into the 3D Cauldron to synthesize real pigments like Emerald Green, Vermilion, and Teal—and watch the cauldron fire 3D color beams to restore the 3 Village Statues!',
+        mapPos: { x: 135, y: 430 },
+        colorHex: '#ef4444',
+        trophy: 'Golden Alchemist Chalice',
+        steps: [
+          '1️⃣ Mission 1: Mix two Primary colors to synthesize <strong>Emerald Green</strong> (Secondary)',
+          '2️⃣ Mission 2: Mix a Primary + adjacent Secondary to synthesize fiery <strong>Vermilion</strong> (Tertiary)',
+          '3️⃣ Mission 3: Mix a Primary + adjacent Secondary to synthesize oceanic <strong>Teal</strong> (Tertiary)'
+        ]
+      },
+      {
+        id: 2,
+        code: 'LEVEL 2',
+        title: 'The Lighthouse Pier',
+        topic: 'Hue, Saturation, Value & Tints / Tones / Shades',
+        desc: 'Three harbor lighthouses are dark! Combine pure Hues with neutral modifiers (Tint, Tone, and Shade bases) in the Pier Cauldron to ignite all 3 3D Lighthouse Beacons!',
+        mapPos: { x: 280, y: 165 },
+        colorHex: '#0ea5e9',
+        trophy: 'Luminous Lighthouse Beacon',
+        steps: [
+          '1️⃣ Mission 1: Combine a pure Hue with a Lightness modifier to create <strong>Sky Blue Tint</strong>',
+          '2️⃣ Mission 2: Combine a pure Hue with a Neutral modifier to create muted <strong>Sage Green Tone</strong>',
+          '3️⃣ Mission 3: Combine a pure Hue with a Darkness modifier to create deep <strong>Midnight Navy Shade</strong>'
+        ]
+      },
+      {
+        id: 3,
+        code: 'LEVEL 3',
+        title: 'The Harmony Bridge',
+        topic: 'Complementary, Analogous & Triadic Color Wheel',
+        desc: 'Use your knowledge of 12-part Color Wheel geometry to align Opposite (Complementary), Neighbor (Analogous), and Triangle (Triadic) harmonies and raise all 3 spans of the 3D Rainbow Bridge!',
+        mapPos: { x: 495, y: 140 },
+        colorHex: '#10b981',
+        trophy: 'Bridge Architect Medallion',
+        steps: [
+          '1️⃣ Mission 1: Find the <strong>180° Complementary Opposite</strong> of pure <strong>Blue</strong>',
+          '2️⃣ Mission 2: Find the <strong>Analogous Neighbor</strong> sitting directly between <strong>Yellow & Green</strong>',
+          '3️⃣ Mission 3: Complete the <strong>120° Secondary Triad</strong> alongside <strong>Orange & Green</strong>'
+        ]
+      },
+      {
+        id: 4,
+        code: 'LEVEL 4',
+        title: 'The Artisan Villa',
+        topic: 'Warm vs. Cool Colors & The 60-30-10 Design Rule',
+        desc: 'Apply Color Temperature psychology (Warm advancing vs. Cool receding hues) and the 60-30-10 proportion rule to ignite the 3D Steam Turbine, cool the Reactor, and crown the Golden Villa Tower!',
+        mapPos: { x: 725, y: 170 },
+        colorHex: '#f59e0b',
+        trophy: 'Thermal Balance Core',
+        steps: [
+          '1️⃣ Mission 1: Select a <strong>Warm Advancing Tertiary Pigment</strong> to ignite the frozen Steam Turbine',
+          '2️⃣ Mission 2: Select a <strong>Cool Receding Tertiary Pigment</strong> to stabilize the overheated Cryo-Reactor',
+          '3️⃣ Mission 3: Select the <strong>10% High-Contrast Focal Accent</strong> from the 60-30-10 Rule for the Villa Tower'
+        ]
+      },
+      {
+        id: 5,
+        code: 'LEVEL 5',
+        title: 'The Optics Sanctuary',
+        topic: 'Human Color-Blindness Goggles & High Contrast',
+        desc: 'Toggle real-time 3D Color-Blindness Goggles (Protanopia, Deuteranopia, Tritanopia) and test which beacon pigment stays vivid and distinguishable for every villager!',
+        mapPos: { x: 675, y: 415 },
+        colorHex: '#eab308',
+        trophy: 'Clear Vision Aegis',
+        steps: [
+          '1️⃣ Mission 1: Under <strong>Protanopia (Red-Blind) Goggles</strong>, choose the most vivid, unmistakable cool beacon color',
+          '2️⃣ Mission 2: Under <strong>Deuteranopia (Green-Blind) Goggles</strong>, choose the brightest high-luminance warm beacon color',
+          '3️⃣ Mission 3: Under <strong>Tritanopia (Blue-Yellow Blind) Goggles</strong>, choose the clearest deep crimson-magenta beacon color'
+        ]
+      },
+      {
+        id: 6,
+        code: 'LEVEL 6',
+        title: 'Wildlife Vision Safari',
+        topic: 'Dog, Honeybee UV & Pit Viper Thermal Vision',
+        desc: 'Switch your 3D camera into Animal Vision Lenses! Discover what colors stand out to dichromatic Dogs, Ultraviolet-sensing Honeybees, and Infrared-sensing Pit Vipers!',
+        mapPos: { x: 395, y: 415 },
+        colorHex: '#a855f7',
+        trophy: 'Grand Spectrum Crown',
+        steps: [
+          '1️⃣ Mission 1: Under <strong>🐕 Dog Vision (Blue-Yellow Cones)</strong>, select the high-visibility warm toy color that won\'t blend into green grass',
+          '2️⃣ Mission 2: Under <strong>🐝 Honeybee UV Vision</strong>, select the short-wavelength Ultraviolet nectar pattern color',
+          '3️⃣ Mission 3: Under <strong>🐍 Pit Viper Infrared Vision</strong>, select the glowing high-temperature thermal signature color'
+        ]
+      }
+    ];
+
+    const SAVE_KEY = 'CHROMA_ODYSSEY_HYBRID_STUDIO_V2';
+    let state = {
+      screen: 'home', // 'home' | 'wardrobe' | 'map2d' | 'play3d'
+      selectedMapLevel: 1,
+      unlockedAll: true,
+      levelStars: { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0 },
+      coins: 100,
+      presetIdx: 0,
+      outfitKey: 'gold',
+      skinHex: '#ecc0a3',
+      hairIdx: 0,
+      crownOn: true,
+      soundOn: true,
+      visionMode: 'vision-normal'
+    };
+
+    // Track mistakes in the current level attempt for dynamic star & coin mastery rewards
+    let currentLevelMistakes = 0;
+
+    // All 6 levels are unlocked right from the start!
+    function isLevelUnlocked(lvlId) {
+      return true;
+    }
+
+    function loadSave() {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          state = { ...state, ...parsed, levelStars: { ...state.levelStars, ...(parsed.levelStars || {}) } };
+        }
+      } catch (e) {}
+    }
+
+    function writeSave() {
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) {}
+      updateHomeHUD();
+    }
+
+    // =========================================================================
+    // 2. SYNTHESIZED SOUND ENGINE & HUD HELPERS
+    // =========================================================================
+    let audioCtx = null;
+    function playSfx(type) {
+      if (!state.soundOn) return;
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const now = audioCtx.currentTime;
+
+        if (type === 'click') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(520, now);
+          osc.frequency.exponentialRampToValueAtTime(680, now + 0.06);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.06);
+        } else if (type === 'pour') {
+          [380, 480, 620].forEach((freq, idx) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.045);
+            gain.gain.setValueAtTime(0.14, now + idx * 0.045);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.045 + 0.09);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now + idx * 0.045);
+            osc.stop(now + idx * 0.045 + 0.09);
+          });
+        } else if (type === 'stepDone') {
+          [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(freq, now + idx * 0.07);
+            gain.gain.setValueAtTime(0.16, now + idx * 0.07);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.07 + 0.25);
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.start(now + idx * 0.07);
+            osc.stop(now + idx * 0.07 + 0.25);
+          });
+        } else if (type === 'error') {
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'sawtooth';
+          osc.frequency.setValueAtTime(210, now);
+          osc.frequency.linearRampToValueAtTime(145, now + 0.18);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start(now);
+          osc.stop(now + 0.18);
+        }
+      } catch (e) {}
+    }
+
+    function updateHomeHUD() {
+      const totalStars = Object.values(state.levelStars).reduce((a, b) => a + b, 0);
+      const trophies = Object.values(state.levelStars).filter(s => s > 0).length;
+      const hs = document.getElementById('home-stars-count');
+      if (hs) hs.textContent = `${totalStars} / 18 ⭐ • 🪙 ${state.coins || 100} Coins`;
+      const hb = document.getElementById('home-star-bar');
+      if (hb) hb.style.width = Math.round(totalStars / 18 * 100) + '%';
+      const ht = document.getElementById('home-trophies-count');
+      if (ht) ht.textContent = trophies;
+      const ms = document.getElementById('map2d-stars');
+      if (ms) ms.textContent = `${totalStars} / 18`;
+    }
+
+    function injectWheelGuideButtons() {
+      // Add Wheel Guide button to Home Top Bar & 3D Play Top Bar if not present
+      const homeTop = document.querySelector('#screen-home > .hm-top > div:last-child');
+      if (homeTop && !document.getElementById('btn-home-wheel-guide')) {
+        const btn = document.createElement('button');
+        btn.id = 'btn-home-wheel-guide';
+        btn.className = 'btn-game glass-panel px-4 py-2.5 rounded-2xl text-sm text-sky-300 border border-sky-400/40';
+        btn.innerHTML = '🎡 Color Wheel Guide';
+        btn.onclick = openWheelGuideModal;
+        homeTop.prepend(btn);
+      }
+
+      const playBannerRow = document.querySelector('#screen-play3d .glass-light > div:first-child');
+      if (playBannerRow && !document.getElementById('btn-play-wheel-guide')) {
+        const wBtn = document.createElement('button');
+        wBtn.id = 'btn-play-wheel-guide';
+        wBtn.className = 'px-2.5 py-0.5 rounded-full bg-purple-100 hover:bg-purple-200 text-purple-900 font-heading font-bold text-[11px] cursor-pointer transition';
+        wBtn.innerHTML = '🎡 12-Hue Wheel Guide';
+        wBtn.onclick = openWheelGuideModal;
+        playBannerRow.appendChild(wBtn);
+
+        const hBtn = document.createElement('button');
+        hBtn.id = 'btn-play-study-hint';
+        hBtn.className = 'px-2.5 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 font-heading font-bold text-[11px] cursor-pointer transition';
+        hBtn.innerHTML = '💡 Study Hint';
+        hBtn.onclick = triggerStudyHint;
+        playBannerRow.appendChild(hBtn);
+      }
+    }
+
+    // =========================================================================
+    // 3. THREE.JS 3D ENGINE, ARTICULATED HUMAN HERO & AMBIENT NATURE FX
+    // =========================================================================
+    const viewport = document.getElementById('webgl-viewport');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x38bdf8);
+    scene.fog = new THREE.FogExp2(0x38bdf8, 0.011);
+
+    const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 300);
+    const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    viewport.appendChild(renderer.domElement);
+
+    const hemiLight = new THREE.HemisphereLight(0xffffff, 0x10b981, 0.85);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.15);
+    sunLight.position.set(28, 45, 25);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
+    scene.add(sunLight);
+
+    // Sunlit Island Ground & Water
+    const oceanGeo = new THREE.CylinderGeometry(120, 120, 2, 48);
+    const oceanMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.2, metalness: 0.3 });
+    const oceanMesh = new THREE.Mesh(oceanGeo, oceanMat);
+    oceanMesh.position.y = -1.6;
+    scene.add(oceanMesh);
+
+    const islandGeo = new THREE.CylinderGeometry(32, 36, 2.2, 48);
+    const islandMat = new THREE.MeshStandardMaterial({ color: 0x4ade80, roughness: 0.8 });
+    const islandMesh = new THREE.Mesh(islandGeo, islandMat);
+    islandMesh.position.y = -0.9;
+    islandMesh.receiveShadow = true;
+    scene.add(islandMesh);
+
+    const plazaGeo = new THREE.CylinderGeometry(16, 16.5, 0.25, 36);
+    const plazaMat = new THREE.MeshStandardMaterial({ color: 0xfef3c7, roughness: 0.65 });
+    const plazaMesh = new THREE.Mesh(plazaGeo, plazaMat);
+    plazaMesh.position.y = 0.08;
+    plazaMesh.receiveShadow = true;
+    scene.add(plazaMesh);
+
+    // Decorative Perimeter Trees
+    const treesGroup = new THREE.Group();
+    scene.add(treesGroup);
+    for (let i = 0; i < 16; i++) {
+      const ang = (i / 16) * Math.PI * 2;
+      if (Math.abs(Math.sin(ang)) < 0.35 && Math.cos(ang) > 0) continue;
+      const dist = 21 + (i % 3) * 3.2;
+      const tree = new THREE.Group();
+      const trunk = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.35, 0.5, 2.4, 10),
+        new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.8 })
+      );
+      trunk.position.y = 1.2;
+      tree.add(trunk);
+
+      const crownColors = [0x22c55e, 0x16a34a, 0x4ade80];
+      const foliage = new THREE.Mesh(
+        new THREE.SphereGeometry(1.65, 14, 14),
+        new THREE.MeshStandardMaterial({ color: crownColors[i % 3], roughness: 0.6 })
+      );
+      foliage.position.y = 3.1;
+      tree.add(foliage);
+      tree.position.set(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
+      treesGroup.add(tree);
+    }
+
+    // Ambient 3D Fluttering Butterflies & Golden Pollen Particles
+    const ambientNatureGroup = new THREE.Group();
+    scene.add(ambientNatureGroup);
+    const butterflies3D = [];
+    const bColors = [0xfbbf24, 0xf472b6, 0x38bdf8, 0xa855f7];
+    for (let i = 0; i < 6; i++) {
+      const bGroup = new THREE.Group();
+      const wingGeo = new THREE.PlaneGeometry(0.38, 0.28);
+      const wingMat = new THREE.MeshBasicMaterial({ color: bColors[i % bColors.length], side: THREE.DoubleSide });
+      const leftWing = new THREE.Mesh(wingGeo, wingMat);
+      leftWing.position.x = -0.18;
+      const rightWing = new THREE.Mesh(wingGeo, wingMat);
+      rightWing.position.x = 0.18;
+      bGroup.add(leftWing, rightWing);
+      ambientNatureGroup.add(bGroup);
+      butterflies3D.push({
+        group: bGroup,
+        leftWing,
+        rightWing,
+        angle: (i / 6) * Math.PI * 2,
+        radius: 6 + (i % 3) * 3.5,
+        height: 2.2 + (i % 2) * 1.1,
+        speed: 0.55 + i * 0.08
+      });
+    }
+
+    // Articulated 3D Human Hero
+    const heroGroup = new THREE.Group();
+    scene.add(heroGroup);
+
+    const OUTFIT_THEMES = {
+      gold:     { color: 0xfbbf24, metalness: 0.88, roughness: 0.18, cape: 0xdc2626, label: 'Royal Gold Armor' },
+      rosegold: { color: 0xf472b6, metalness: 0.82, roughness: 0.22, cape: 0xbe185d, label: 'Rose Gold Tunic' },
+      silver:   { color: 0xe2e8f0, metalness: 0.90, roughness: 0.15, cape: 0x0284c7, label: 'Chrome Silver' },
+      obsidian: { color: 0x1e293b, metalness: 0.75, roughness: 0.25, cape: 0xf59e0b, label: 'Black & Gold' },
+      cobalt:   { color: 0x2563eb, metalness: 0.65, roughness: 0.28, cape: 0x38bdf8, label: 'Sapphire Explorer' },
+      emerald:  { color: 0x059669, metalness: 0.65, roughness: 0.28, cape: 0x34d399, label: 'Emerald Guardian' }
+    };
+    const HAIR_COLORS = [0x451a03, 0xfacc15, 0xb91c1c, 0x1e293b, 0xf8fafc];
+    const HERO_PRESETS = [
+      { name: 'Leo',  outfit: 'gold',     skin: '#ecc0a3', hair: 0, crown: true },
+      { name: 'Aria', outfit: 'rosegold', skin: '#f9e0d2', hair: 1, crown: true },
+      { name: 'Maya', outfit: 'cobalt',   skin: '#d59b72', hair: 2, crown: false },
+      { name: 'Noah', outfit: 'emerald',  skin: '#a66a44', hair: 3, crown: true }
+    ];
+
+    const heroSkinMat = new THREE.MeshStandardMaterial({ color: 0xecc0a3, roughness: 0.45 });
+    const heroArmorMat = new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.88, roughness: 0.18 });
+    const heroCapeMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.55, side: THREE.DoubleSide });
+    const heroHairMat = new THREE.MeshStandardMaterial({ color: 0x451a03, roughness: 0.6 });
+    const heroBootMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.4, roughness: 0.5 });
+
+    // Torso & Tunic
+    const torsoMesh = new THREE.Mesh(new THREE.CylinderGeometry(0.58, 0.48, 1.35, 16), heroArmorMat);
+    torsoMesh.position.y = 1.95;
+    torsoMesh.castShadow = true;
+    heroGroup.add(torsoMesh);
+
+    // Belt
+    const beltMesh = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.53, 0.53, 0.16, 16),
+      new THREE.MeshStandardMaterial({ color: 0x78350f, roughness: 0.5 })
+    );
+    beltMesh.position.y = 1.42;
+    heroGroup.add(beltMesh);
+
+    // Royal Cape
+    const capeMesh = new THREE.Mesh(new THREE.PlaneGeometry(1.15, 1.55), heroCapeMat);
+    capeMesh.position.set(0, 1.82, -0.52);
+    capeMesh.rotation.x = 0.16;
+    heroGroup.add(capeMesh);
+
+    // Head & Expressive Human Face
+    const headGroup = new THREE.Group();
+    headGroup.position.y = 3.05;
+    heroGroup.add(headGroup);
+
+    const headMesh = new THREE.Mesh(new THREE.SphereGeometry(0.52, 24, 24), heroSkinMat);
+    headMesh.castShadow = true;
+    headGroup.add(headMesh);
+
+    // Eyes, Pupils & Catchlights
+    const eyeWhiteGeo = new THREE.SphereGeometry(0.085, 12, 12);
+    const eyeWhiteMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+    const pupilGeo = new THREE.SphereGeometry(0.048, 10, 10);
+    const pupilMat = new THREE.MeshBasicMaterial({ color: 0x0f172a });
+
+    [-0.17, 0.17].forEach(xOff => {
+      const ew = new THREE.Mesh(eyeWhiteGeo, eyeWhiteMat);
+      ew.position.set(xOff, 0.06, 0.45);
+      headGroup.add(ew);
+      const ep = new THREE.Mesh(pupilGeo, pupilMat);
+      ep.position.set(xOff, 0.06, 0.51);
+      headGroup.add(ep);
+    });
+
+    // Nose & Friendly Smile
+    const noseMesh = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 10), heroSkinMat);
+    noseMesh.position.set(0, -0.02, 0.53);
+    headGroup.add(noseMesh);
+
+    const smileMesh = new THREE.Mesh(
+      new THREE.TorusGeometry(0.11, 0.022, 8, 16, Math.PI),
+      new THREE.MeshBasicMaterial({ color: 0x991b1b })
+    );
+    smileMesh.position.set(0, -0.12, 0.48);
+    smileMesh.rotation.x = Math.PI;
+    headGroup.add(smileMesh);
+
+    // Sculpted Hair Cap
+    const hairMesh = new THREE.Mesh(new THREE.SphereGeometry(0.55, 20, 20, 0, Math.PI * 2, 0, Math.PI * 0.58), heroHairMat);
+    hairMesh.position.y = 0.05;
+    hairMesh.rotation.x = -0.22;
+    headGroup.add(hairMesh);
+
+    // Golden Crown
+    const crownGroup = new THREE.Group();
+    crownGroup.position.y = 0.48;
+    const crownBand = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.36, 0.32, 0.22, 12),
+      new THREE.MeshStandardMaterial({ color: 0xfde047, metalness: 0.9, roughness: 0.15 })
+    );
+    crownGroup.add(crownBand);
+    headGroup.add(crownGroup);
+
+    // Articulated Arms & Legs
+    function createLimb(radius, len, mat, handMat) {
+      const g = new THREE.Group();
+      const upper = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.9, len, 12), mat);
+      upper.position.y = -len / 2;
+      upper.castShadow = true;
+      g.add(upper);
+      const endSphere = new THREE.Mesh(new THREE.SphereGeometry(radius * 1.05, 12, 12), handMat);
+      endSphere.position.y = -len;
+      g.add(endSphere);
+      return g;
+    }
+
+    const leftArm = createLimb(0.16, 0.95, heroArmorMat, heroSkinMat);
+    leftArm.position.set(-0.74, 2.5, 0);
+    heroGroup.add(leftArm);
+
+    const rightArm = createLimb(0.16, 0.95, heroArmorMat, heroSkinMat);
+    rightArm.position.set(0.74, 2.5, 0);
+    heroGroup.add(rightArm);
+
+    const leftLeg = createLimb(0.2, 1.15, heroBootMat, heroBootMat);
+    leftLeg.position.set(-0.26, 1.25, 0);
+    heroGroup.add(leftLeg);
+
+    const rightLeg = createLimb(0.2, 1.15, heroBootMat, heroBootMat);
+    rightLeg.position.set(0.26, 1.25, 0);
+    heroGroup.add(rightLeg);
+
+    let previewYaw = 0;
+
+    function syncHeroAppearance() {
+      const theme = OUTFIT_THEMES[state.outfitKey] || OUTFIT_THEMES.gold;
+      heroArmorMat.color.setHex(theme.color);
+      heroArmorMat.metalness = theme.metalness;
+      heroArmorMat.roughness = theme.roughness;
+      heroCapeMat.color.setHex(theme.cape);
+      heroSkinMat.color.set(state.skinHex);
+      heroHairMat.color.setHex(HAIR_COLORS[state.hairIdx % HAIR_COLORS.length]);
+      crownGroup.visible = !!state.crownOn;
+
+      const preset = HERO_PRESETS[state.presetIdx] || HERO_PRESETS[0];
+      const lbl = document.getElementById('wardrobe-hero-label');
+      if (lbl) lbl.textContent = `${preset.name} • ${theme.label}`;
+
+      const mapHead = document.getElementById('map2d-avatar-head');
+      if (mapHead) mapHead.setAttribute('fill', state.skinHex);
+
+      [0, 1, 2, 3].forEach(i => {
+        const b = document.getElementById('preset-btn-' + i);
+        if (b) {
+          b.className = i === state.presetIdx
+            ? 'p-3 rounded-2xl border-2 border-amber-500 bg-amber-50 text-left'
+            : 'p-3 rounded-2xl border border-slate-200 bg-white text-left';
+        }
+      });
+    }
+
+    function applyHeroPreset(idx) {
+      playSfx('click');
+      const p = HERO_PRESETS[idx] || HERO_PRESETS[0];
+      state.presetIdx = idx;
+      state.outfitKey = p.outfit;
+      state.skinHex = p.skin;
+      state.hairIdx = p.hair;
+      state.crownOn = p.crown;
+      syncHeroAppearance();
+      writeSave();
+    }
+    function setHeroOutfit(key) { playSfx('click'); state.outfitKey = key; syncHeroAppearance(); writeSave(); }
+    function setHeroSkin(hex) { playSfx('click'); state.skinHex = hex; syncHeroAppearance(); writeSave(); }
+    function cycleHeroHair() { playSfx('click'); state.hairIdx = (state.hairIdx + 1) % HAIR_COLORS.length; syncHeroAppearance(); writeSave(); }
+    function toggleHeroCrown() { playSfx('click'); state.crownOn = !state.crownOn; syncHeroAppearance(); writeSave(); }
+    function rotateHeroPreview(delta) { previewYaw += delta; }
+
+    // =========================================================================
+    // 4. SCREEN NAVIGATION & CAMERA VIEWPORT FRAMING
+    // =========================================================================
+    function clearMovementInputs() {
+      Object.keys(keys).forEach(k => keys[k] = false);
+      dpad = { x: 0, z: 0 };
+    }
+
+    function updateCameraFraming() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+
+      if ((state.screen === 'home' || state.screen === 'wardrobe') && w >= 1024) {
+        camera.setViewOffset(w, h, -w * 0.22, 0, w, h);
+      } else {
+        camera.clearViewOffset();
+      }
+      camera.updateProjectionMatrix();
+    }
+
+    function showOnlyScreen(screenId) {
+      const orbs = document.getElementById('ambient-orbs');
+      if (orbs) orbs.style.display = (screenId === 'screen-play3d') ? 'none' : 'block';
+      ['screen-home', 'screen-wardrobe', 'screen-map2d', 'screen-play3d'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        if (id === screenId) {
+          el.classList.remove('hidden');
+          el.classList.add('flex');
+        } else {
+          el.classList.add('hidden');
+          el.classList.remove('flex');
+        }
+      });
+    }
+
+    function openHomeScreen() {
+      playSfx('click');
+      clearMovementInputs();
+      activate3DVision('vision-normal', false);
+      state.screen = 'home';
+      previewYaw = -0.35;
+      clear3DLevelStage();
+      showOnlyScreen('screen-home');
+      updateCameraFraming();
+      updateHomeHUD();
+      injectWheelGuideButtons();
+    }
+
+    function openWardrobeScreen() {
+      playSfx('click');
+      clearMovementInputs();
+      state.screen = 'wardrobe';
+      previewYaw = 0;
+      clear3DLevelStage();
+      showOnlyScreen('screen-wardrobe');
+      updateCameraFraming();
+      syncHeroAppearance();
+    }
+
+    function openVillageMapScreen() {
+      playSfx('click');
+      clearMovementInputs();
+      activate3DVision('vision-normal', false);
+      state.screen = 'map2d';
+      clear3DLevelStage();
+      showOnlyScreen('screen-map2d');
+      updateCameraFraming();
+      updateHomeHUD();
+      render2DVillageMap();
+      select2DMapLevel(state.selectedMapLevel || 1, false);
+    }
+
+    function render2DVillageMap() {
+      const group = document.getElementById('map2d-nodes-group');
+      if (!group) return;
+
+      group.innerHTML = LEVELS.map(lvl => {
+        const stars = state.levelStars[lvl.id] || 0;
+        const isSelected = state.selectedMapLevel === lvl.id;
+        const starStr = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+        return `
+          <g transform="translate(${lvl.mapPos.x}, ${lvl.mapPos.y})" onclick="select2DMapLevel(${lvl.id}, true)" ondblclick="launchSelected3DLevel()" style="cursor:pointer">
+            <g class="map-node-btn">
+              <circle r="56" fill="rgba(255,255,255,0.001)" />
+              ${isSelected ? '<circle r="46" fill="none" stroke="#fde047" stroke-width="4" class="node-ring" />' : ''}
+              <circle r="${isSelected ? 40 : 34}" fill="${lvl.colorHex}" stroke="#ffffff" stroke-width="${isSelected ? 5 : 3}" />
+              <polygon points="-24,-10 0,-30 24,-10" fill="#fef3c7" stroke="#78350f" stroke-width="2" />
+              <rect x="-18" y="-10" width="36" height="24" rx="4" fill="#ffffff" stroke="#78350f" stroke-width="2" />
+              <rect x="-6" y="0" width="12" height="14" rx="2" fill="${lvl.colorHex}" />
+              <rect x="-46" y="20" width="92" height="20" rx="10" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5" />
+              <text x="0" y="34" text-anchor="middle" fill="#ffffff" font-family="Outfit" font-weight="800" font-size="11">${lvl.code}</text>
+              <text x="0" y="-36" text-anchor="middle" font-size="13">${starStr}</text>
+              <circle cx="-34" cy="-26" r="11" fill="#0f172a" stroke="#fbbf24" stroke-width="2" />
+              <text x="-34" y="-22" text-anchor="middle" fill="#fbbf24" font-family="Outfit" font-weight="800" font-size="12">${lvl.id}</text>
+              ${stars > 0 ? '<circle cx="34" cy="-26" r="11" fill="#16a34a" stroke="#ffffff" stroke-width="2" /><text x="34" y="-21" text-anchor="middle" fill="#ffffff" font-size="13" font-weight="800">✓</text>' : ''}
+              <g class="node-title"><rect x="-80" y="-84" width="160" height="22" rx="11" fill="#0f172a" stroke="#fbbf24" stroke-width="1.5" /><text x="0" y="-69" text-anchor="middle" fill="#fde68a" font-family="Outfit" font-weight="800" font-size="11">${lvl.title}</text></g>
+            </g>
+          </g>
+        `;
+      }).join('');
+    }
+
+    // Show level steps as simple numbered missions (strips the "1️⃣ Mission 1:" prefix)
+    function missionText(str) {
+      return String(str).replace(/^\s*\S+\s*(?:Stage|Mission)\s*\d\s*:\s*/, '');
+    }
+
+    function stepMapLevel(d) {
+      const n = Math.min(LEVELS.length, Math.max(1, (state.selectedMapLevel || 1) + d));
+      select2DMapLevel(n, true);
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (state.screen !== 'map2d') return;
+      if (document.querySelector('.ui-screen[id^="modal-"]:not(.hidden)')) return;
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') stepMapLevel(1);
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') stepMapLevel(-1);
+      else if (e.key === 'Enter') launchSelected3DLevel();
+    });
+
+    document.addEventListener('keydown', (e) => {
+      if (state.screen !== 'play3d' || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key === 'h' || e.key === 'H') revealNextHint();
+    });
+
+    // ===== Score, combo & speed-bonus layer =====
+    let gameScore = 0, gameCombo = 0, missionStart = Date.now();
+    const SPEED_WINDOW = 30;
+
+    function updateScoreHud() {
+      const sc = document.getElementById('hud-score'), cb = document.getElementById('hud-combo');
+      if (sc) sc.textContent = gameScore;
+      if (cb) cb.textContent = '🔥 Combo x' + gameCombo;
+    }
+
+    function popText(text, color) {
+      const el = document.createElement('div');
+      el.className = 'pop-float';
+      el.style.color = color;
+      el.textContent = text;
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 1600);
+    }
+
+    function flashFx(good) {
+      const f = document.createElement('div');
+      f.className = 'fx-flash';
+      f.style.background = good ? 'radial-gradient(circle, rgba(74,222,128,.7), transparent 70%)' : 'radial-gradient(circle, rgba(248,113,113,.75), transparent 70%)';
+      document.body.appendChild(f);
+      setTimeout(() => f.remove(), 700);
+      if (!good) {
+        const scr = document.getElementById('screen-play3d');
+        if (scr) { scr.classList.remove('shake'); void scr.offsetWidth; scr.classList.add('shake'); }
+      }
+    }
+
+    function onMissionCorrect() {
+      const secs = (Date.now() - missionStart) / 1000;
+      const speed = Math.max(0, Math.round((SPEED_WINDOW - secs) / SPEED_WINDOW * 100));
+      gameCombo++;
+      const mult = Math.min(gameCombo, 5);
+      const pts = (100 + speed) * mult;
+      gameScore += pts;
+      updateScoreHud();
+      popText('+' + pts + (mult > 1 ? '  🔥 x' + mult + ' COMBO!' : ''), '#facc15');
+      flashFx(true);
+    }
+
+    function onWrongAttempt() {
+      if (state.screen !== 'play3d') return;
+      gameCombo = 0;
+      updateScoreHud();
+      popText('Oops! Combo reset', '#fca5a5');
+      flashFx(false);
+    }
+
+    function startMissionTimer() {
+      missionStart = Date.now();
+      if (current3DStep === 0) { gameScore = 0; gameCombo = 0; }
+      updateScoreHud();
+    }
+
+    setInterval(() => {
+      const bar = document.getElementById('hud-time');
+      if (!bar || state.screen !== 'play3d') return;
+      const left = Math.max(0, 1 - (Date.now() - missionStart) / 1000 / SPEED_WINDOW);
+      bar.style.width = (left * 100) + '%';
+      bar.style.background = left > .5 ? '#34d399' : left > .2 ? '#facc15' : '#f87171';
+    }, 200);
+
+    (function wrapGameplay() {
+      const _sfx = playSfx;
+      playSfx = function (t) { if (t === 'error') onWrongAttempt(); return _sfx.apply(this, arguments); };
+      const _adv = advance3DStageWithBeam;
+      advance3DStageWithBeam = function () { onMissionCorrect(); return _adv.apply(this, arguments); };
+      const _hdr = refresh3DMissionHeader;
+      refresh3DMissionHeader = function () { startMissionTimer(); return _hdr.apply(this, arguments); };
+      const _win = showLevelVictoryModal;
+      showLevelVictoryModal = function () {
+        const r = _win.apply(this, arguments);
+        let best = 0;
+        try {
+          const k = 'colourcode_best_' + current3DLevel;
+          best = Math.max(gameScore, parseInt(localStorage.getItem(k) || '0', 10));
+          localStorage.setItem(k, String(best));
+        } catch (e) { best = gameScore; }
+        const rank = gameScore >= 900 ? '🏆 Colour Master' : gameScore >= 500 ? '🎨 Colour Artist' : '🖌️ Colour Apprentice';
+        const vs = document.getElementById('victory-score'), vr = document.getElementById('victory-rank');
+        if (vs) vs.textContent = gameScore;
+        if (vr) vr.textContent = rank + ' • Best: ' + best;
+        return r;
+      };
+    })();
+
+    // ===== Interactive bucket pouring (front of screen) =====
+    function hexOf(n) { return '#' + Number(n).toString(16).padStart(6, '0'); }
+
+    // 3D bucket that tips over and pours paint onto the current statue in the scene
+    const pourFx3D = [];
+    let pourLoopOn = false;
+
+    function pourLoop(now) {
+      for (let i = pourFx3D.length - 1; i >= 0; i--) {
+        if (!pourFx3D[i].update(now)) pourFx3D.splice(i, 1);
+      }
+      if (pourFx3D.length) requestAnimationFrame(pourLoop); else pourLoopOn = false;
+    }
+
+    function bucketPour(hex, side) {
+      const lm = landmarks3D[current3DStep] || landmarks3D[0];
+      if (!lm || state.screen !== 'play3d') return;
+      const col = new THREE.Color(hex);
+      const dir = side === 'L' ? -1 : 1;
+      const TH = 1.0, R = 0.42, HH = 0.275;
+      const topY = lm.pos.y + lm.sculpture.position.y + 1.45;
+      const hoverY = topY + 1.75;
+      const bx = lm.pos.x + dir * (R * Math.cos(TH) + HH * Math.sin(TH));
+      const bz = lm.pos.z + 0.3;
+
+      const bucket = new THREE.Group();
+      const metal = new THREE.MeshStandardMaterial({ color: 0xcbd5e1, metalness: 0.5, roughness: 0.4, side: THREE.DoubleSide });
+      bucket.add(new THREE.Mesh(new THREE.CylinderGeometry(R, 0.3, HH * 2, 20, 1, true), metal));
+      const bottom = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), metal);
+      bottom.rotation.x = -Math.PI / 2; bottom.position.y = -HH; bucket.add(bottom);
+      const paint = new THREE.Mesh(new THREE.CircleGeometry(R - 0.02, 20), new THREE.MeshBasicMaterial({ color: col }));
+      paint.rotation.x = -Math.PI / 2; paint.position.y = HH - 0.07; bucket.add(paint);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(R, 0.03, 8, 24), new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.6, roughness: 0.3 }));
+      rim.rotation.x = Math.PI / 2; rim.position.y = HH; bucket.add(rim);
+      const handle = new THREE.Mesh(new THREE.TorusGeometry(R - 0.02, 0.025, 8, 16, Math.PI), metal);
+      handle.position.y = HH; bucket.add(handle);
+      bucket.position.set(bx, hoverY + 1.4, bz);
+      bucket.scale.setScalar(0.01);
+      levelStageGroup.add(bucket);
+
+      const streamGeo = new THREE.CylinderGeometry(0.07, 0.07, 1, 10);
+      streamGeo.translate(0, -0.5, 0);
+      const stream = new THREE.Mesh(streamGeo, new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.92 }));
+      stream.visible = false; levelStageGroup.add(stream);
+      const drops = [];
+      for (let i = 0; i < 5; i++) {
+        const d = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), new THREE.MeshBasicMaterial({ color: col }));
+        d.visible = false; levelStageGroup.add(d); drops.push(d);
+      }
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.2, 28), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; ring.position.set(lm.pos.x, topY + 0.03, lm.pos.z);
+      ring.visible = false; levelStageGroup.add(ring);
+
+      const mat = lm.statueMat;
+      if (!lm._origColor) { lm._origColor = mat.color.clone(); lm._origEm = mat.emissive.clone(); }
+      const t0 = performance.now();
+      const ease = (x) => x * x * (3 - 2 * x);
+      const parts = [bucket, stream, ring].concat(drops);
+
+      pourFx3D.push({
+        update(now) {
+          const t = (now - t0) / 1000;
+          if (t > 2.0 || lm.restored && t > 1.7) {
+            parts.forEach(m => levelStageGroup.remove(m));
+            if (!lm.restored && lm._origColor) { mat.color.copy(lm._origColor); mat.emissive.copy(lm._origEm); }
+            return false;
+          }
+          // bucket: fly in + tip, hold, tip back + leave
+          const kIn = ease(Math.min(1, t / 0.45));
+          const kOut = ease(Math.min(1, Math.max(0, (t - 1.45) / 0.5)));
+          const k = kIn * (1 - kOut);
+          bucket.scale.setScalar(0.01 + 0.99 * k);
+          bucket.position.y = hoverY + (1 - kIn) * 1.4 + kOut * 1.4;
+          bucket.rotation.z = dir * TH * k;
+          const lx = -dir * R, ly = HH, rz = bucket.rotation.z;
+          const lipX = bucket.position.x + lx * Math.cos(rz) - ly * Math.sin(rz);
+          const lipY = bucket.position.y + lx * Math.sin(rz) + ly * Math.cos(rz);
+          // paint stream + droplets
+          const flowing = t > 0.4 && t < 1.5;
+          const len = Math.max(0.01, lipY - topY);
+          const grow = Math.min(1, (t - 0.4) / 0.18) * (t > 1.35 ? Math.max(0, (1.5 - t) / 0.15) : 1);
+          stream.visible = flowing;
+          if (flowing) {
+            stream.position.set(lipX, lipY, bz);
+            stream.scale.set(1 + Math.sin(t * 40) * 0.15, len * Math.max(0.05, grow), 1 + Math.cos(t * 40) * 0.15);
+          }
+          drops.forEach((d, i) => {
+            d.visible = flowing && grow > 0.5;
+            const f = ((t * 2.4) + i / drops.length) % 1;
+            d.position.set(lipX + Math.sin(i * 2.1 + t * 9) * 0.05, lipY - f * len, bz);
+          });
+          // splash ring + statue tint where it lands
+          ring.visible = flowing && grow > 0.5;
+          if (ring.visible) {
+            const f = (t * 1.6) % 1;
+            ring.scale.setScalar(0.6 + f * 2.6);
+            ring.material.opacity = 0.9 * (1 - f);
+            if (!lm.restored) {
+              mat.color.lerp(col, 0.07);
+              mat.emissive.copy(col).multiplyScalar(0.3 + 0.12 * Math.sin(t * 14));
+            }
+          } else if (!lm.restored && t > 1.5 && lm._origColor) {
+            mat.color.lerp(lm._origColor, 0.12);
+            mat.emissive.lerp(lm._origEm, 0.12);
+          }
+          return true;
+        }
+      });
+      if (!pourLoopOn) { pourLoopOn = true; requestAnimationFrame(pourLoop); }
+    }
+
+    function showMixEquation(aId, bId, res) {
+      const a = BASE_POTS.find(p => p.id === aId), b = BASE_POTS.find(p => p.id === bId);
+      if (!a || !b || !res) return;
+      document.querySelectorAll('.mix-eq').forEach(e => e.remove());
+      const el = document.createElement('div');
+      el.className = 'mix-eq';
+      const dot = (c) => '<span class="dot" style="background:' + c + ';color:' + c + '"></span>';
+      el.innerHTML = dot(a.hex) + '<span>' + a.name + '</span><span style="color:#fbbf24">+</span>' + dot(b.hex) + '<span>' + b.name + '</span><span style="color:#fbbf24">=</span>' + dot(hexOf(res.color)) + '<span>' + res.name + '</span>';
+      document.body.appendChild(el);
+      setTimeout(() => el.remove(), 2700);
+    }
+
+    (function wrapInteractivePour() {
+      const _pour = pourBottleIntoCauldron;
+      pourBottleIntoCauldron = function (potId) {
+        const pot = BASE_POTS.find(x => x.id === potId);
+        const hadA = !!mixerSlotA, hadB = !!mixerSlotB;
+        if (pot) bucketPour(pot.hex, hadA && !hadB ? 'R' : 'L', pot.name);
+        const a0 = mixerSlotA;
+        const r = _pour.apply(this, arguments);
+        if (hadA && !hadB && lastMixedPigment) showMixEquation(a0, potId, lastMixedPigment);
+        return r;
+      };
+      const _harm = selectHarmonyChoice;
+      selectHarmonyChoice = function (chosen, correct, hexNum) {
+        if (chosen === correct) bucketPour(hexOf(hexNum), 'C', chosen.split(' ')[0]);
+        return _harm.apply(this, arguments);
+      };
+      const _vis = attemptVisionChoice;
+      attemptVisionChoice = function (vid, chosen, correct, hexNum) {
+        if (chosen === correct) bucketPour(hexOf(hexNum), 'C', chosen.split(' ')[0]);
+        return _vis.apply(this, arguments);
+      };
+      const _ok = onMissionCorrect;
+      onMissionCorrect = function () { try { triggerHeroJump3D(); } catch (e) {} return _ok.apply(this, arguments); };
+    })();
+
+    // ===== Home screen interactivity: parallax + paint splashes =====
+    function spawnSplash(x, y, color) {
+      const cols = color ? [color] : ['#ef4444', '#f97316', '#facc15', '#22c55e', '#38bdf8', '#c084fc', '#ec4899'];
+      for (let i = 0; i < 10; i++) {
+        const d = document.createElement('div');
+        d.className = 'hm-dot';
+        const ang = (Math.PI * 2 * i) / 10 + Math.random() * 0.5, dist = 40 + Math.random() * 60;
+        d.style.left = x + 'px'; d.style.top = y + 'px';
+        d.style.background = cols[i % cols.length];
+        d.style.setProperty('--dx', Math.cos(ang) * dist + 'px');
+        d.style.setProperty('--dy', Math.sin(ang) * dist + 'px');
+        document.body.appendChild(d);
+        setTimeout(() => d.remove(), 800);
+      }
+    }
+
+    window.addEventListener('mousemove', (e) => {
+      if (state.screen !== 'home') return;
+      const h = document.getElementById('screen-home');
+      h.style.setProperty('--mx', ((e.clientX / window.innerWidth) * 2 - 1).toFixed(3));
+      h.style.setProperty('--my', ((e.clientY / window.innerHeight) * 2 - 1).toFixed(3));
+    });
+
+    window.addEventListener('pointerdown', (e) => {
+      if (state.screen !== 'home') return;
+      if (e.target.closest && e.target.closest('button')) return;
+      const letter = e.target.closest && e.target.closest('.hm-letter');
+      if (letter) { playSfx('click'); spawnSplash(e.clientX, e.clientY, getComputedStyle(letter).getPropertyValue('--c').trim()); }
+      else spawnSplash(e.clientX, e.clientY);
+    });
+
+    function initAmbientOrbs() {
+      const box = document.getElementById('ambient-orbs');
+      if (!box) return;
+      const cols = ['#ef4444','#eab308','#3b82f6','#f97316','#22c55e','#9333ea','#ec4899','#06b6d4'];
+      box.innerHTML = Array.from({length: 16}, (_, i) => {
+        const sz = 14 + Math.random() * 34;
+        return `<div class="orb" style="left:${Math.random()*100}%;width:${sz}px;height:${sz}px;background:radial-gradient(circle at 30% 30%,#fff,${cols[i % cols.length]});animation-duration:${14 + Math.random()*16}s;animation-delay:-${Math.random()*25}s"></div>`;
+      }).join('');
+    }
+
+    function burstConfetti() {
+      const cols = ['#ef4444','#eab308','#3b82f6','#22c55e','#9333ea','#f97316','#ec4899'];
+      for (let i = 0; i < 70; i++) {
+        const c = document.createElement('div');
+        c.className = 'confetti';
+        c.style.left = Math.random() * 100 + '%';
+        c.style.width = c.style.height = (6 + Math.random() * 8) + 'px';
+        c.style.background = cols[i % cols.length];
+        c.style.borderRadius = Math.random() > .5 ? '50%' : '2px';
+        c.style.animationDuration = (2 + Math.random() * 2.5) + 's';
+        c.style.animationDelay = (Math.random() * .6) + 's';
+        document.body.appendChild(c);
+        setTimeout(() => c.remove(), 5500);
+      }
+    }
+
+    function select2DMapLevel(lvlId, playSound = true) {
+      if (playSound) playSfx('click');
+      state.selectedMapLevel = lvlId;
+      const lvl = LEVELS.find(l => l.id === lvlId) || LEVELS[0];
+      const stars = state.levelStars[lvl.id] || 0;
+
+      const avatar = document.getElementById('map2d-avatar');
+      if (avatar) {
+        avatar.style.transition = 'transform .75s cubic-bezier(.34,1.45,.5,1)';
+        avatar.style.transform = `translate(${lvl.mapPos.x}px, ${lvl.mapPos.y - 12}px)`;
+      }
+
+      document.getElementById('map2d-sel-code').textContent = lvl.code;
+      document.getElementById('map2d-sel-stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+      document.getElementById('map2d-sel-title').textContent = lvl.title;
+      document.getElementById('map2d-sel-topic').textContent = lvl.topic;
+      document.getElementById('map2d-sel-desc').textContent = lvl.desc;
+      document.getElementById('map2d-step-1').innerHTML = '1. ' + missionText(lvl.steps[0]);
+      document.getElementById('map2d-step-2').innerHTML = '2. ' + missionText(lvl.steps[1]);
+      document.getElementById('map2d-step-3').innerHTML = '3. ' + missionText(lvl.steps[2]);
+
+      render2DVillageMap();
+    }
+
+    // =========================================================================
+    // 5. 3D LEVEL STAGE BUILDER, CAULDRON BUBBLES, POURING STREAM & SHOCKWAVES
+    // =========================================================================
+    const levelStageGroup = new THREE.Group();
+    scene.add(levelStageGroup);
+
+    let current3DLevel = 1;
+    let current3DStep = 0;
+    let mixerSlotA = null;
+    let freeMixA = 'Red';
+    let freeMixB = 'Blue';
+    let freeMixNextSlot = 1;
+    let mixerSlotB = null;
+    let lastMixedPigment = null;
+    let landmarks3D = [];
+    let cauldronLiquidMat = null;
+    let activeBeamMesh = null;
+    let beamTimer = 0;
+
+    // 3D Pouring Stream, Rising Cauldron Bubbles & Restoration Shockwaves
+    let pourStreamMesh = null;
+    let pourStreamTimer = 0;
+    let cauldronBubbles = [];
+    let shockwaveRings = [];
+
+    function clear3DLevelStage() {
+      while (levelStageGroup.children.length > 0) {
+        const obj = levelStageGroup.children[0];
+        levelStageGroup.remove(obj);
+      }
+      landmarks3D = [];
+      cauldronBubbles = [];
+      shockwaveRings = [];
+      cauldronLiquidMat = null;
+      activeBeamMesh = null;
+      pourStreamMesh = null;
+      const lblLayer = document.getElementById('world-labels-layer');
+      if (lblLayer) lblLayer.innerHTML = '';
+    }
+
+    function launchSelected3DLevel() {
+      playSfx('stepDone');
+      current3DLevel = state.selectedMapLevel || 1;
+      current3DStep = 0;
+      currentLevelMistakes = 0;
+      mixerSlotA = null;
+      mixerSlotB = null;
+      lastMixedPigment = null;
+
+      state.screen = 'play3d';
+      activate3DVision('vision-normal', false);
+      showOnlyScreen('screen-play3d');
+      updateCameraFraming();
+      injectWheelGuideButtons();
+
+      build3DStageForLevel(current3DLevel);
+      refresh3DMissionHeader();
+      renderInteractiveAlchemyDock();
+    }
+
+    function replayCurrent3DLevel() {
+      const m = document.getElementById('modal-victory');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+      launchSelected3DLevel();
+    }
+
+    function build3DStageForLevel(lvlId) {
+      clear3DLevelStage();
+      heroGroup.position.set(0, 0.2, 5.2);
+      heroGroup.rotation.y = Math.PI;
+      camYaw = 0;
+      camPitch = 0.42;
+      camDist = 20;
+
+      // Central 3D Alchemy Cauldron
+      const cauldronGroup = new THREE.Group();
+      cauldronGroup.position.set(0, 0.1, 1.2);
+
+      const potBody = new THREE.Mesh(
+        new THREE.CylinderGeometry(1.75, 1.35, 1.65, 24),
+        new THREE.MeshStandardMaterial({ color: 0x1e293b, metalness: 0.75, roughness: 0.28 })
+      );
+      potBody.position.y = 0.85;
+      potBody.castShadow = true;
+      cauldronGroup.add(potBody);
+
+      const goldRim = new THREE.Mesh(
+        new THREE.TorusGeometry(1.75, 0.14, 12, 32),
+        new THREE.MeshStandardMaterial({ color: 0xfbbf24, metalness: 0.9, roughness: 0.15 })
+      );
+      goldRim.rotation.x = Math.PI / 2;
+      goldRim.position.y = 1.68;
+      cauldronGroup.add(goldRim);
+
+      cauldronLiquidMat = new THREE.MeshStandardMaterial({
+        color: 0x38bdf8,
+        emissive: 0x0284c7,
+        emissiveIntensity: 0.55,
+        roughness: 0.15
+      });
+      const liquidDisk = new THREE.Mesh(new THREE.CylinderGeometry(1.6, 1.6, 0.12, 24), cauldronLiquidMat);
+      liquidDisk.position.y = 1.56;
+      cauldronGroup.add(liquidDisk);
+
+      // 3D Pouring Stream Mesh (animates when pouring a bottle)
+      const streamGeo = new THREE.CylinderGeometry(0.12, 0.24, 2.6, 12);
+      const streamMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
+      pourStreamMesh = new THREE.Mesh(streamGeo, streamMat);
+      pourStreamMesh.position.set(0, 2.9, 0);
+      pourStreamMesh.visible = false;
+      cauldronGroup.add(pourStreamMesh);
+
+      // Rising 3D Cauldron Bubbles
+      for (let b = 0; b < 8; b++) {
+        const bMesh = new THREE.Mesh(
+          new THREE.SphereGeometry(0.12 + (b % 3) * 0.05, 10, 10),
+          cauldronLiquidMat
+        );
+        const angle = (b / 8) * Math.PI * 2;
+        const rad = 0.35 + (b % 3) * 0.35;
+        bMesh.position.set(Math.cos(angle) * rad, 1.65 + (b * 0.18), Math.sin(angle) * rad);
+        cauldronGroup.add(bMesh);
+        cauldronBubbles.push({ mesh: bMesh, baseY: 1.65, offset: b * 0.8 });
+      }
+
+      levelStageGroup.add(cauldronGroup);
+
+      // 3 Stage Landmarks / Statues / Lighthouses / Bridge Spans in a semi-circle
+      const landmarkTitles = {
+        1: ['West Foliage Statue', 'Center Sun Flame Statue', 'East Ocean Wave Statue'],
+        2: ['Dawn Pastel Lighthouse', 'Harbor Mist Lighthouse', 'Midnight Deep Lighthouse'],
+        3: ['Complementary Bridge Span', 'Analogous Garden Arch', 'Triadic Crown Obelisk'],
+        4: ['Solar Steam Turbine', 'Cryo-Coolant Reactor', 'Golden Villa Focal Tower'],
+        5: ['Protanopia Safety Beacon', 'Deuteranopia Luminance Tower', 'Tritanopia Crimson Totem'],
+        6: ['Canine Meadow Beacon', 'Ultraviolet Nectar Blossom', 'Viper Thermal Obelisk']
+      }[lvlId] || ['Stage 1 Shrine', 'Stage 2 Shrine', 'Stage 3 Shrine'];
+
+      const coords = [
+        new THREE.Vector3(-7.5, 0.1, -6.2),
+        new THREE.Vector3(0, 0.1, -8.2),
+        new THREE.Vector3(7.5, 0.1, -6.2)
+      ];
+
+      const lblLayer = document.getElementById('world-labels-layer');
+
+      coords.forEach((pos, idx) => {
+        const mGroup = new THREE.Group();
+        mGroup.position.copy(pos);
+
+        const ped = new THREE.Mesh(
+          new THREE.CylinderGeometry(1.6, 1.9, 1.1, 16),
+          new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 })
+        );
+        ped.position.y = 0.55;
+        ped.castShadow = true;
+        mGroup.add(ped);
+
+        const statueMat = new THREE.MeshStandardMaterial({
+          color: 0x64748b,
+          roughness: 0.55,
+          metalness: 0.3
+        });
+
+        let sculpture;
+        if (lvlId === 2) {
+          sculpture = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 1.0, 3.6, 16), statueMat);
+          sculpture.position.y = 2.9;
+        } else if (lvlId === 3) {
+          sculpture = new THREE.Mesh(new THREE.TorusGeometry(1.25, 0.32, 14, 28), statueMat);
+          sculpture.position.y = 2.8;
+        } else {
+          sculpture = new THREE.Mesh(new THREE.OctahedronGeometry(1.45, 1), statueMat);
+          sculpture.position.y = 2.85;
+        }
+        sculpture.castShadow = true;
+        mGroup.add(sculpture);
+
+        const haloRing = new THREE.Mesh(
+          new THREE.RingGeometry(2.0, 2.35, 32),
+          new THREE.MeshBasicMaterial({ color: 0xfbbf24, side: THREE.DoubleSide })
+        );
+        haloRing.rotation.x = -Math.PI / 2;
+        haloRing.position.y = 0.08;
+        haloRing.visible = (idx === 0);
+        mGroup.add(haloRing);
+
+        levelStageGroup.add(mGroup);
+
+        const id = `mon-${idx}`;
+        const div = document.createElement('div');
+        div.id = `lbl3d-${id}`;
+        div.className = 'world-label px-3 py-1 rounded-full bg-slate-950/90 border border-amber-400/70 text-xs font-heading font-bold text-white shadow-lg';
+        div.innerHTML = `🗿 ${landmarkTitles[idx]}`;
+        lblLayer.appendChild(div);
+
+        landmarks3D.push({
+          id,
+          title: landmarkTitles[idx],
+          pos: pos.clone(),
+          sculpture,
+          statueMat,
+          haloRing,
+          restored: false,
+          labelY: 5.1
+        });
+      });
+    }
+
+    function triggerPourStreamFX(colorHexNum) {
+      if (!pourStreamMesh) return;
+      pourStreamMesh.material.color.setHex(colorHexNum);
+      pourStreamMesh.visible = true;
+      pourStreamTimer = 0.45;
+    }
+
+    function fire3DColorBeam(targetPos, colorHexNum) {
+      if (activeBeamMesh) {
+        levelStageGroup.remove(activeBeamMesh);
+        activeBeamMesh = null;
+      }
+      const start = new THREE.Vector3(0, 1.9, 1.2);
+      const end = targetPos.clone().add(new THREE.Vector3(0, 2.6, 0));
+      const dist = start.distanceTo(end);
+
+      const beamGeo = new THREE.CylinderGeometry(0.22, 0.22, dist, 12);
+      beamGeo.translate(0, dist / 2, 0);
+      beamGeo.rotateX(Math.PI / 2);
+
+      const beamMat = new THREE.MeshBasicMaterial({ color: colorHexNum });
+      const beam = new THREE.Mesh(beamGeo, beamMat);
+      beam.position.copy(start);
+      beam.lookAt(end);
+
+      levelStageGroup.add(beam);
+      activeBeamMesh = beam;
+      beamTimer = 0.85;
+
+      // Spawn expanding 3D shockwave ring at the restored landmark
+      const sRing = new THREE.Mesh(
+        new THREE.RingGeometry(0.6, 1.1, 32),
+        new THREE.MeshBasicMaterial({ color: colorHexNum, side: THREE.DoubleSide, transparent: true, opacity: 0.95 })
+      );
+      sRing.rotation.x = -Math.PI / 2;
+      sRing.position.set(targetPos.x, 0.25, targetPos.z);
+      levelStageGroup.add(sRing);
+      shockwaveRings.push({ mesh: sRing, age: 0 });
+    }
+
+    function autoWalkHeroToCenter() {
+      playSfx('click');
+      const target = landmarks3D[current3DStep] || landmarks3D[0];
+      if (target) {
+        heroGroup.position.set(target.pos.x * 0.5, 0.2, target.pos.z + 3.2);
+        heroGroup.lookAt(target.pos.x, 0.2, target.pos.z);
+        triggerHeroJump3D();
+      }
+    }
+
+    // =========================================================================
+    // 6. INTERACTIVE COLOR ALCHEMY DOCK (CLICK-TO-POUR & CHALLENGE OPTIONS)
+    // =========================================================================
+    const LEVEL_STAGE_SPECS = {
+      1: [
+        {
+          goalTitle: 'Stage 1/3: Synthesize Emerald Green (Secondary Color)',
+          hint: 'Color Theory Clue: A Secondary color is formed by mixing two Primary colors. Which two Primaries combine to make green foliage?',
+          studyTip: 'There are only 3 Primary colors (Red, Yellow, Blue). Try combining the sunny warm Primary with the cool ocean Primary!',
+          targetPigment: 'Emerald Green',
+          pots: ['Red', 'Yellow', 'Blue', 'Orange', 'Green', 'Purple']
+        },
+        {
+          goalTitle: 'Stage 2/3: Synthesize Vermilion (Warm Tertiary Color)',
+          hint: 'Color Theory Clue: Vermilion (Cinnabar) is a fiery red-orange Tertiary pigment. Mix a warm Primary with its adjacent warm Secondary!',
+          studyTip: 'Tertiary pigments sit between a Primary and its neighboring Secondary on the 12-Hue Wheel. Look at the warm fiery side of the wheel!',
+          targetPigment: 'Vermilion',
+          pots: ['Red', 'Yellow', 'Blue', 'Orange', 'Green', 'Purple']
+        },
+        {
+          goalTitle: 'Stage 3/3: Synthesize Teal (Cool Tertiary Color)',
+          hint: 'Color Theory Clue: Teal is a deep oceanic blue-green Tertiary pigment. Mix a cool Primary with its adjacent cool Secondary!',
+          studyTip: 'Teal sits halfway between the cool ocean Primary and the forest Secondary color!',
+          targetPigment: 'Teal',
+          pots: ['Red', 'Yellow', 'Blue', 'Orange', 'Green', 'Purple']
+        }
+      ],
+      2: [
+        {
+          goalTitle: 'Stage 1/3: Synthesize Sky Blue Tint (High-Value Pastel)',
+          hint: 'Color Theory Clue: A TINT increases Value (Lightness). Combine the pure ocean Hue with the neutral modifier that lightens pigment!',
+          studyTip: 'In Color Theory, Tint = Hue + White, Tone = Hue + Grey, and Shade = Hue + Black.',
+          targetPigment: 'Sky Blue Tint',
+          pots: ['Blue', 'Green', 'Red', 'White', 'Grey', 'Black']
+        },
+        {
+          goalTitle: 'Stage 2/3: Synthesize Sage Green Tone (Muted Chroma)',
+          hint: 'Color Theory Clue: A TONE softens Saturation without making the color stark white or pitch dark. Combine the forest Hue with the balanced neutral modifier!',
+          studyTip: 'To create a sophisticated muted Tone, mix the pure green Hue with neutral Grey!',
+          targetPigment: 'Sage Green Tone',
+          pots: ['Blue', 'Green', 'Red', 'White', 'Grey', 'Black']
+        },
+        {
+          goalTitle: 'Stage 3/3: Synthesize Midnight Navy Shade (Low-Value Deep Hue)',
+          hint: 'Color Theory Clue: A SHADE lowers Value (Darkness). Combine the pure ocean Hue with the neutral modifier that deepens pigment!',
+          studyTip: 'Shades are created when you darken a pure Hue by adding Black pigment!',
+          targetPigment: 'Midnight Navy Shade',
+          pots: ['Blue', 'Green', 'Red', 'White', 'Grey', 'Black']
+        }
+      ]
+    };
+
+    function triggerStudyHint() {
+      playSfx('click');
+      if (current3DLevel === 1 || current3DLevel === 2) {
+        const spec = LEVEL_STAGE_SPECS[current3DLevel]?.[current3DStep];
+        if (spec) showToast(`💡 Study Hint: ${spec.studyTip}`);
+      } else if (current3DLevel === 3) {
+        showToast('💡 Study Hint: Open the 🎡 12-Hue Wheel Guide to see Opposite (180°), Neighbor, and Triangle positions!');
+      } else if (current3DLevel === 4) {
+        showToast('💡 Study Hint: Warm colors (Red/Orange/Gold) advance; Cool colors (Blue/Teal/Green) recede; 10% Accent is the brightest gold!');
+      } else {
+        showToast('💡 Study Hint: Click the 3D Lens buttons on the right of the dock to see how each color looks through that eye filter!');
+      }
+    }
+
+    const NEON_DOT = '<span class="neon-dot"></span>';
+    function isRecipePot(potId, spec) {
+      return spec.pots.some(o => o !== potId && resolveColorMixture(potId, o).name === spec.targetPigment);
+    }
+
+    // Progressive hints: [gentle nudge, stronger clue, full answer]
+    const HINTS = {
+      1: [
+        ['Secondary colors are made by mixing two PRIMARY colors. The Primaries are Red, Yellow and Blue.', 'Green is the color of leaves. Which two Primaries look like grass when mixed: sun + sea?', 'Answer: pour <strong>Blue</strong> + <strong>Yellow</strong> to make Emerald Green.'],
+        ['Tertiary colors sit between a Primary and a neighboring Secondary on the wheel.', 'Vermilion is a fiery red-orange. Think of the two warm bottles that sit side by side.', 'Answer: pour <strong>Red</strong> + <strong>Orange</strong> to make Vermilion.'],
+        ['Teal is a deep ocean blue-green, so it sits on the cool side of the wheel.', 'Combine the cool Primary with the cool Secondary that is its neighbor.', 'Answer: pour <strong>Blue</strong> + <strong>Green</strong> to make Teal.']
+      ],
+      2: [
+        ['A TINT makes a color lighter. Which neutral bottle lightens things?', 'Tint = Hue + White. The hue here is the ocean one.', 'Answer: pour <strong>Blue</strong> + <strong>White</strong> to make Sky Blue Tint.'],
+        ['A TONE mutes a color without making it light or dark. Which neutral sits in the middle?', 'Tone = Hue + Grey. The hue is the forest one.', 'Answer: pour <strong>Green</strong> + <strong>Grey</strong> to make Sage Green Tone.'],
+        ['A SHADE makes a color deeper and darker. Which neutral bottle is darkest?', 'Shade = Hue + Black. Navy comes from the ocean hue.', 'Answer: pour <strong>Blue</strong> + <strong>Black</strong> to make Midnight Navy Shade.']
+      ],
+      3: [
+        ['Complementary colors sit exactly across the wheel (180°) from each other.', 'Blue is a cool color, so its opposite is the warmest-looking choice, between Red and Yellow.', 'Answer: choose <strong>Tangerine Orange</strong>.'],
+        ['Analogous colors are neighbors that sit side by side on the wheel.', 'Find the color halfway between Yellow and Green. It looks lime-bright.', 'Answer: choose <strong>Chartreuse</strong>.'],
+        ['A triad uses 3 colors spaced 120° apart. Orange and Green are two of the Secondary colors.', 'The three Secondaries are Orange, Green and one more. Which Secondary is left?', 'Answer: choose <strong>Royal Purple</strong>.']
+      ],
+      4: [
+        ['Warm colors advance and feel hot. Look for a fiery mix of Red and Orange.', 'Avoid the blues, greens and greys. Pick the bright red-orange.', 'Answer: choose <strong>Vermilion</strong>.'],
+        ['Cool colors recede and feel calm. Think of ocean and ice.', 'It is a blue-green Tertiary color.', 'Answer: choose <strong>Teal</strong>.'],
+        ['In the 60-30-10 rule, the 10% accent is the brightest, most eye-catching color.', 'Choose the shining, golden, high-contrast option.', 'Answer: choose <strong>Amber Gold</strong>.']
+      ],
+      5: [
+        ['Protanopia means red-blind, so reds look dark and muddy. Blues stay clear.', 'Pick the bright, light, cool color. Avoid reds, browns and olive greens.', 'Answer: choose <strong>Sky Blue</strong>.'],
+        ['Deuteranopia means green-blind. Red and green blur together, but brightness still stands out.', 'Pick the brightest warm golden color.', 'Answer: choose <strong>Amber Gold</strong>.'],
+        ['Tritanopia means blue-yellow blind. Reds and magentas stay strong.', 'Pick the deep pinkish-crimson color.', 'Answer: choose <strong>Magenta</strong>.']
+      ],
+      6: [
+        ['Dogs see mostly blue and yellow. Red and green look alike to them.', 'A warm yellow toy will not blend into green grass for a dog.', 'Answer: choose <strong>Amber Gold</strong>.'],
+        ['Bees see ultraviolet light, which sits just past violet at the short-wavelength end.', 'Look for the purple option with UV in its name.', 'Answer: choose <strong>Ultraviolet Purple</strong>.'],
+        ['Pit vipers sense heat (infrared). Hot things glow red-orange.', 'Look for the option with "Thermal" in its name.', 'Answer: choose <strong>Thermal Vermilion</strong>.']
+      ]
+    };
+    let hintTier = 0;
+    let hintCollapsed = window.innerWidth < 640;
+
+    function renderHintBox(resetTier) {
+      if (resetTier) hintTier = 0;
+      const set = (HINTS[current3DLevel] || [])[Math.min(2, current3DStep)];
+      const txt = document.getElementById('hint-text');
+      if (!set || !txt) return;
+      document.getElementById('hint-stage-tag').textContent = `• Mission ${Math.min(3, current3DStep + 1)}`;
+      txt.innerHTML = set[hintTier];
+      document.getElementById('hint-dots').textContent = '●'.repeat(hintTier + 1) + '○'.repeat(2 - hintTier);
+      const btn = document.getElementById('hint-more-btn');
+      btn.textContent = hintTier >= 2 ? 'Final hint' : 'Need more help?';
+      btn.disabled = hintTier >= 2;
+      btn.style.opacity = hintTier >= 2 ? '.45' : '1';
+      document.getElementById('hint-body').style.display = hintCollapsed ? 'none' : 'block';
+      document.getElementById('hint-toggle-icon').textContent = hintCollapsed ? '▲' : '▼';
+    }
+
+    function revealNextHint() {
+      if (hintTier < 2) { hintTier++; playSfx('click'); renderHintBox(false); }
+    }
+
+    function toggleHintBox() {
+      hintCollapsed = !hintCollapsed;
+      playSfx('click');
+      renderHintBox(false);
+    }
+
+    function refresh3DMissionHeader() {
+      renderHintBox(true);
+      const lvl = LEVELS.find(l => l.id === current3DLevel);
+      if (!lvl) return;
+      document.getElementById('play3d-level-badge').textContent = `${lvl.code} • STAGE ${Math.min(3, current3DStep + 1)} OF 3`;
+      document.getElementById('play3d-level-title').textContent = lvl.title;
+      document.getElementById('play3d-step-pill').textContent = `STAGE ${Math.min(3, current3DStep + 1)} OF 3`;
+      document.getElementById('play3d-objective-text').innerHTML = lvl.steps[current3DStep] || 'All 3 Stages Complete!';
+
+      [1, 2, 3].forEach(idx => {
+        const bar = document.getElementById('play3d-prog-' + idx);
+        if (idx <= current3DStep) bar.className = 'h-2 rounded-full bg-emerald-500';
+        else if (idx === current3DStep + 1) bar.className = 'h-2 rounded-full bg-amber-400';
+        else bar.className = 'h-2 rounded-full bg-slate-300';
+      });
+
+      landmarks3D.forEach((m, i) => {
+        if (m.haloRing) m.haloRing.visible = (i === current3DStep && !m.restored);
+      });
+    }
+
+    function renderInteractiveAlchemyDock() {
+      const dock = document.getElementById('interactive-alchemy-dock');
+      if (!dock) return;
+
+      // LEVEL 1 & LEVEL 2: CLICK-TO-POUR TWO-BOTTLE CAULDRON MIXER (NO SPOILER TAGS)
+      if (current3DLevel === 1 || current3DLevel === 2) {
+        const spec = LEVEL_STAGE_SPECS[current3DLevel][current3DStep] || LEVEL_STAGE_SPECS[current3DLevel][2];
+        const potButtonsHTML = spec.pots.map(potId => {
+          const p = BASE_POTS.find(x => x.id === potId);
+          const isPicked = (mixerSlotA === potId || mixerSlotB === potId);
+          return `
+            <button onclick="pourBottleIntoCauldron('${potId}')"
+                    class="paint-pot relative p-2.5 rounded-2xl border-2 ${isPicked ? 'border-amber-300 bg-amber-400/20 scale-105' : 'border-white/20 bg-slate-900/85 hover:border-amber-400/60'} flex flex-col items-center gap-1 shadow-lg">
+              ${isRecipePot(potId, spec) ? NEON_DOT : ''}
+              <div class="w-10 h-10 rounded-xl border-2 border-white shadow-inner flex items-center justify-center" style="background:${p.hex}">
+                <span class="text-xs">🫗</span>
+              </div>
+              <span class="font-heading font-bold text-xs text-white">${p.name}</span>
+              <span class="text-[10px] text-slate-400">Pigment Bottle</span>
+            </button>
+          `;
+        }).join('');
+
+        const sA = BASE_POTS.find(x => x.id === mixerSlotA);
+        const sB = BASE_POTS.find(x => x.id === mixerSlotB);
+
+        dock.innerHTML = `
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
+            <!-- Left 7 Cols: Click-to-Pour Paint Bottles -->
+            <div class="lg:col-span-7 space-y-2">
+              <div class="flex justify-between items-center">
+                <span class="text-xs font-heading font-bold uppercase text-amber-300">🫗 Choose 2 Paint Bottles to Pour into the Cauldron:</span>
+                <button onclick="clearCauldronSlots()" class="text-xs font-heading font-bold text-slate-300 hover:text-amber-300">🔄 Clear Bowl</button>
+              </div>
+              <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                ${potButtonsHTML}
+              </div>
+            </div>
+
+            <!-- Right 5 Cols: Live Mixing Bowl & Real Color Name Readout -->
+            <div class="lg:col-span-5 bg-slate-950/90 border border-white/15 rounded-2xl p-3.5 flex flex-col justify-between space-y-2.5">
+              <div class="flex items-center justify-center gap-2.5">
+                <div class="text-center">
+                  <div class="w-11 h-11 rounded-xl border-2 border-white mx-auto flex items-center justify-center text-xs font-bold"
+                       style="background:${sA ? sA.hex : '#1e293b'}">${sA ? '' : '1'}</div>
+                  <div class="text-[11px] font-heading font-bold text-slate-300 mt-1">${sA ? sA.name : 'Bottle 1'}</div>
+                </div>
+                <span class="text-lg font-bold text-amber-400">+</span>
+                <div class="text-center">
+                  <div class="w-11 h-11 rounded-xl border-2 border-white mx-auto flex items-center justify-center text-xs font-bold"
+                       style="background:${sB ? sB.hex : '#1e293b'}">${sB ? '' : '2'}</div>
+                  <div class="text-[11px] font-heading font-bold text-slate-300 mt-1">${sB ? sB.name : 'Bottle 2'}</div>
+                </div>
+                <span class="text-lg font-bold text-amber-400">=</span>
+                <div class="text-center">
+                  <div class="w-14 h-14 rounded-2xl border-4 border-amber-300 mx-auto shadow-lg"
+                       style="background:${lastMixedPigment ? lastMixedPigment.hex : '#0f172a'}"></div>
+                  <div class="text-[11px] font-heading font-bold text-amber-300 mt-1">${lastMixedPigment ? lastMixedPigment.name : 'Mix Result'}</div>
+                </div>
+              </div>
+
+              <div class="text-center bg-slate-900/90 rounded-xl p-2 border border-white/10">
+                ${lastMixedPigment ? `
+                  <div class="text-xs font-heading font-bold text-emerald-300">${lastMixedPigment.name} • <span class="text-amber-300">${lastMixedPigment.type}</span></div>
+                  <div class="text-[11px] text-slate-300 mt-0.5">${lastMixedPigment.fact}</div>
+                ` : `
+                  <div class="text-xs font-heading font-bold text-amber-200">${spec.hint}</div>
+                `}
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // LEVEL 3: HARMONY WHEEL CHALLENGE (6 EQUAL SWATCHES, NO SPOILER LABELS)
+      if (current3DLevel === 3) {
+        const stageChallenges = [
+          {
+            title: 'Stage 1/3: Complementary Harmony (180° Opposite on the Color Wheel)',
+            desc: 'Complementary colors sit directly across (180°) from each other on the 12-part Color Wheel for maximum contrast. Which color below is the true complement of BLUE?',
+            correct: 'Tangerine Orange',
+            choices: [
+              { name: 'Emerald Green',    hex: '#10b981', color: 0x10b981 },
+              { name: 'Tangerine Orange', hex: '#f97316', color: 0xf97316 },
+              { name: 'Indigo',           hex: '#4f46e5', color: 0x4f46e5 },
+              { name: 'Magenta',          hex: '#db2777', color: 0xdb2777 },
+              { name: 'Royal Purple',     hex: '#9333ea', color: 0x9333ea },
+              { name: 'Teal',             hex: '#0d9488', color: 0x0d9488 }
+            ]
+          },
+          {
+            title: 'Stage 2/3: Analogous Harmony (Adjacent Neighbors on the Color Wheel)',
+            desc: 'Analogous schemes use neighboring colors that sit right next to each other. Which tertiary pigment sits directly between YELLOW and GREEN?',
+            correct: 'Chartreuse',
+            choices: [
+              { name: 'Vermilion',        hex: '#ff3b1f', color: 0xff3b1f },
+              { name: 'Royal Purple',     hex: '#9333ea', color: 0x9333ea },
+              { name: 'Chartreuse',       hex: '#84cc16', color: 0x84cc16 },
+              { name: 'Midnight Navy',    hex: '#1e3a8a', color: 0x1e3a8a },
+              { name: 'Magenta',          hex: '#db2777', color: 0xdb2777 },
+              { name: 'Indigo',           hex: '#4f46e5', color: 0x4f46e5 }
+            ]
+          },
+          {
+            title: 'Stage 3/3: Triadic Harmony (120° Equilateral Triangle)',
+            desc: 'A Secondary Triad spaces three colors equally (120° apart) around the wheel. If two corners of the triangle are ORANGE and GREEN, which color completes the triad?',
+            correct: 'Royal Purple',
+            choices: [
+              { name: 'Amber Gold',       hex: '#fbbf24', color: 0xfbbf24 },
+              { name: 'Sky Blue Tint',    hex: '#7dd3fc', color: 0x7dd3fc },
+              { name: 'Red',              hex: '#ef4444', color: 0xef4444 },
+              { name: 'Royal Purple',     hex: '#9333ea', color: 0x9333ea },
+              { name: 'Chartreuse',       hex: '#84cc16', color: 0x84cc16 },
+              { name: 'Teal',             hex: '#0d9488', color: 0x0d9488 }
+            ]
+          }
+        ];
+        const ch = stageChallenges[current3DStep] || stageChallenges[2];
+        dock.innerHTML = `
+          <div class="space-y-3">
+            <div>
+              <div class="text-xs font-heading font-bold uppercase text-amber-300">${ch.title}</div>
+              <div class="text-xs text-slate-200 mt-0.5">${ch.desc}</div>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              ${ch.choices.map(c => `
+                <button onclick="selectHarmonyChoice('${c.name}', '${ch.correct}', ${c.color})"
+                        class="paint-pot relative p-2.5 rounded-2xl bg-slate-900/90 border-2 border-white/20 hover:border-amber-400 flex flex-col items-center gap-1.5 text-center">
+                  ${c.name === ch.correct ? NEON_DOT : ''}
+                  <div class="w-10 h-10 rounded-xl border-2 border-white shrink-0 shadow-md" style="background:${c.hex}"></div>
+                  <div class="font-heading font-bold text-xs text-white">${c.name}</div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // LEVEL 4: WARM VS COOL TEMPERATURE & 60-30-10 DESIGN RULE (6 EQUAL OPTIONS, NO SPOILERS)
+      if (current3DLevel === 4) {
+        const stageChallenges = [
+          {
+            title: 'Stage 1/3: Color Temperature — Warm Advancing Pigment',
+            desc: 'Long-wavelength colors visually advance toward the viewer and evoke heat and kinetic energy. Select the fiery tertiary pigment formed from Red and Orange:',
+            correct: 'Vermilion',
+            choices: [
+              { name: 'Teal',          hex: '#0d9488', color: 0x0d9488 },
+              { name: 'Slate Grey',    hex: '#64748b', color: 0x64748b },
+              { name: 'Vermilion',     hex: '#ff3b1f', color: 0xff3b1f },
+              { name: 'Indigo',        hex: '#4f46e5', color: 0x4f46e5 },
+              { name: 'Midnight Navy', hex: '#1e3a8a', color: 0x1e3a8a },
+              { name: 'Sage Green',    hex: '#6b8e78', color: 0x6b8e78 }
+            ]
+          },
+          {
+            title: 'Stage 2/3: Color Temperature — Cool Receding Pigment',
+            desc: 'Short-wavelength colors visually recede in space and signal calm thermal stability. Select the oceanic tertiary pigment formed from Blue and Green:',
+            correct: 'Teal',
+            choices: [
+              { name: 'Vermilion',        hex: '#ff3b1f', color: 0xff3b1f },
+              { name: 'Tangerine Orange', hex: '#f97316', color: 0xf97316 },
+              { name: 'Amber Gold',       hex: '#fbbf24', color: 0xfbbf24 },
+              { name: 'Teal',             hex: '#0d9488', color: 0x0d9488 },
+              { name: 'Red',              hex: '#ef4444', color: 0xef4444 },
+              { name: 'Rose Pink',        hex: '#fda4af', color: 0xfda4af }
+            ]
+          },
+          {
+            title: 'Stage 3/3: The 60-30-10 Proportional Hierarchy Rule',
+            desc: 'A balanced design uses 60% calm Dominant background, 30% Secondary structure, and 10% luminous Focal Accent. Which swatch below is best suited as the bright 10% Golden Focal Accent?',
+            correct: 'Amber Gold',
+            choices: [
+              { name: 'Slate Grey',     hex: '#475569', color: 0x475569 },
+              { name: 'Midnight Navy',  hex: '#1e3a8a', color: 0x1e3a8a },
+              { name: 'Charcoal Black', hex: '#1e293b', color: 0x1e293b },
+              { name: 'Sage Tone',      hex: '#6b8e78', color: 0x6b8e78 },
+              { name: 'Amber Gold',     hex: '#fbbf24', color: 0xfbbf24 },
+              { name: 'Russet Umber',   hex: '#78350f', color: 0x78350f }
+            ]
+          }
+        ];
+        const ch = stageChallenges[current3DStep] || stageChallenges[2];
+        dock.innerHTML = `
+          <div class="space-y-3">
+            <div>
+              <div class="text-xs font-heading font-bold uppercase text-amber-300">${ch.title}</div>
+              <div class="text-xs text-slate-200 mt-0.5">${ch.desc}</div>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              ${ch.choices.map(c => `
+                <button onclick="selectHarmonyChoice('${c.name}', '${ch.correct}', ${c.color})"
+                        class="paint-pot relative p-2.5 rounded-2xl bg-slate-900/90 border-2 border-white/20 hover:border-amber-400 flex flex-col items-center gap-1.5 text-center">
+                  ${c.name === ch.correct ? NEON_DOT : ''}
+                  <div class="w-10 h-10 rounded-xl border-2 border-white shrink-0 shadow-md" style="background:${c.hex}"></div>
+                  <div class="font-heading font-bold text-xs text-white">${c.name}</div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      // LEVEL 5 & LEVEL 6: HUMAN COLOR-BLINDNESS GOGGLES & ANIMAL VISION LENSES (6 EQUAL SWATCHES, NO SPOILERS)
+      if (current3DLevel === 5 || current3DLevel === 6) {
+        const isL5 = (current3DLevel === 5);
+        const stageData = isL5 ? [
+          {
+            visionId: 'vision-protanopia',
+            visionLabel: '👓 Stage 1/3: Protanopia (Red-Blindness) Accessibility Challenge',
+            explain: 'Equip the Red-Blind Goggles using the filter bar! Because L-cones (red) are absent, reds look dark and muddied against greens. Which high-luminance cool blue pigment below stays bright and unmistakable?',
+            correct: 'Sky Blue',
+            choices: [
+              { name: 'Crimson Red',   hex: '#dc2626', color: 0xdc2626 },
+              { name: 'Forest Green',  hex: '#15803d', color: 0x15803d },
+              { name: 'Sky Blue',      hex: '#38bdf8', color: 0x38bdf8 },
+              { name: 'Russet Brown',  hex: '#78350f', color: 0x78350f },
+              { name: 'Olive Green',   hex: '#65a30d', color: 0x65a30d },
+              { name: 'Burgundy',      hex: '#7f1d1d', color: 0x7f1d1d }
+            ]
+          },
+          {
+            visionId: 'vision-deuteranopia',
+            visionLabel: '👓 Stage 2/3: Deuteranopia (Green-Blindness) Accessibility Challenge',
+            explain: 'Equip the Green-Blind Goggles! Red and green wavelengths merge into similar olive-tan tones. Which high-value golden-yellow pigment below provides the highest luminance contrast?',
+            correct: 'Amber Gold',
+            choices: [
+              { name: 'Emerald Green', hex: '#10b981', color: 0x10b981 },
+              { name: 'Vermilion Red', hex: '#ef4444', color: 0xef4444 },
+              { name: 'Sage Green',    hex: '#6b8e78', color: 0x6b8e78 },
+              { name: 'Amber Gold',    hex: '#fbbf24', color: 0xfbbf24 },
+              { name: 'Terracotta',    hex: '#b85d57', color: 0xb85d57 },
+              { name: 'Forest Pine',   hex: '#14532d', color: 0x14532d }
+            ]
+          },
+          {
+            visionId: 'vision-tritanopia',
+            visionLabel: '👓 Stage 3/3: Tritanopia (Blue-Yellow Blindness) Accessibility Challenge',
+            explain: 'Equip the Blue-Blind Goggles! S-cones are absent, causing blue and green to blur together and yellow to fade. Which vivid red-violet pigment below stays distinct and high-contrast?',
+            correct: 'Magenta',
+            choices: [
+              { name: 'Lemon Yellow',  hex: '#fef08a', color: 0xfef08a },
+              { name: 'Chartreuse',    hex: '#84cc16', color: 0x84cc16 },
+              { name: 'Mint Pastel',   hex: '#86efac', color: 0x86efac },
+              { name: 'Slate Grey',    hex: '#64748b', color: 0x64748b },
+              { name: 'Magenta',       hex: '#db2777', color: 0xdb2777 },
+              { name: 'Cream White',   hex: '#fef9c3', color: 0xfef9c3 }
+            ]
+          }
+        ] : [
+          {
+            visionId: 'vision-dog',
+            visionLabel: '🐕 Stage 1/3: Dichromatic Dog Vision Challenge',
+            explain: 'Switch to the 🐕 Dog Vision lens! Dogs only possess Blue and Yellow cones—so red toys vanish into green grass. Which warm golden-yellow pigment below will pop clearly for a dog?',
+            correct: 'Amber Gold',
+            choices: [
+              { name: 'Crimson Red',   hex: '#dc2626', color: 0xdc2626 },
+              { name: 'Grass Green',   hex: '#22c55e', color: 0x22c55e },
+              { name: 'Amber Gold',    hex: '#fbbf24', color: 0xfbbf24 },
+              { name: 'Burgundy',      hex: '#7f1d1d', color: 0x7f1d1d },
+              { name: 'Forest Green',  hex: '#14532d', color: 0x14532d },
+              { name: 'Slate Grey',    hex: '#64748b', color: 0x64748b }
+            ]
+          },
+          {
+            visionId: 'vision-bee',
+            visionLabel: '🐝 Stage 2/3: Honeybee Ultraviolet (UV) Pollination Challenge',
+            explain: 'Switch to the 🐝 Bee UV lens! Honeybees are blind to red, but see short-wavelength Ultraviolet bullseyes on petals. Select the UV-violet nectar beacon pigment below:',
+            correct: 'Ultraviolet Purple',
+            choices: [
+              { name: 'Scarlet Red',        hex: '#ef4444', color: 0xef4444 },
+              { name: 'Russet Brown',       hex: '#78350f', color: 0x78350f },
+              { name: 'Charcoal Black',     hex: '#1e293b', color: 0x1e293b },
+              { name: 'Ultraviolet Purple', hex: '#a855f7', color: 0xa855f7 },
+              { name: 'Burgundy Maroon',    hex: '#7f1d1d', color: 0x7f1d1d },
+              { name: 'Olive Grey',         hex: '#64748b', color: 0x64748b }
+            ]
+          },
+          {
+            visionId: 'vision-snake',
+            visionLabel: '🐍 Stage 3/3: Pit Viper Infrared Thermal Sensing Challenge',
+            explain: 'Switch to the 🐍 Snake IR lens! Pit Vipers detect warm radiant infrared heat signatures against cool night backgrounds. Select the glowing high-heat thermal color below:',
+            correct: 'Thermal Vermilion',
+            choices: [
+              { name: 'Midnight Navy',     hex: '#1e3a8a', color: 0x1e3a8a },
+              { name: 'Cool Teal',         hex: '#0d9488', color: 0x0d9488 },
+              { name: 'Slate Grey',        hex: '#475569', color: 0x475569 },
+              { name: 'Forest Pine',       hex: '#14532d', color: 0x14532d },
+              { name: 'Thermal Vermilion', hex: '#ff3b1f', color: 0xff3b1f },
+              { name: 'Obsidian Black',    hex: '#0f172a', color: 0x0f172a }
+            ]
+          }
+        ];
+
+        const st = stageData[current3DStep] || stageData[2];
+        dock.innerHTML = `
+          <div class="space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="text-xs sm:text-sm font-heading font-bold text-amber-300">${st.visionLabel}</div>
+              <div class="flex flex-wrap items-center gap-1">
+                <span class="text-[11px] font-heading font-bold text-slate-300 mr-1">3D Lens:</span>
+                <button onclick="activate3DVision('vision-normal', true)" class="px-2 py-1 rounded-lg text-[11px] font-bold ${state.visionMode==='vision-normal'?'bg-amber-400 text-slate-950':'bg-white/10 text-white'}">Human</button>
+                <button onclick="activate3DVision('vision-protanopia', true)" class="px-2 py-1 rounded-lg text-[11px] font-bold ${state.visionMode==='vision-protanopia'?'bg-amber-400 text-slate-950':'bg-white/10 text-white'}">Red-Blind</button>
+                <button onclick="activate3DVision('vision-deuteranopia', true)" class="px-2 py-1 rounded-lg text-[11px] font-bold ${state.visionMode==='vision-deuteranopia'?'bg-amber-400 text-slate-950':'bg-white/10 text-white'}">Green-Blind</button>
+                <button onclick="activate3DVision('vision-tritanopia', true)" class="px-2 py-1 rounded-lg text-[11px] font-bold ${state.visionMode==='vision-tritanopia'?'bg-amber-400 text-slate-950':'bg-white/10 text-white'}">Blue-Blind</button>
+                <button onclick="activate3DVision('vision-dog', true)" class="px-2 py-1 rounded-lg text-[11px] font-bold ${state.visionMode==='vision-dog'?'bg-amber-400 text-slate-950':'bg-white/10 text-white'}">🐕 Dog</button>
+                <button onclick="activate3DVision('vision-bee', true)" class="px-2 py-1 rounded-lg text-[11px] font-bold ${state.visionMode==='vision-bee'?'bg-amber-400 text-slate-950':'bg-white/10 text-white'}">🐝 Bee UV</button>
+                <button onclick="activate3DVision('vision-snake', true)" class="px-2 py-1 rounded-lg text-[11px] font-bold ${state.visionMode==='vision-snake'?'bg-amber-400 text-slate-950':'bg-white/10 text-white'}">🐍 Snake IR</button>
+              </div>
+            </div>
+            <p class="text-xs text-slate-200 leading-relaxed">${st.explain}</p>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              ${st.choices.map(c => `
+                <button onclick="attemptVisionChoice('${st.visionId}', '${c.name}', '${st.correct}', ${c.color})"
+                        class="paint-pot relative p-2.5 rounded-2xl bg-slate-900/90 border-2 border-white/20 hover:border-amber-400 flex flex-col items-center gap-1.5 text-center">
+                  ${c.name === st.correct ? NEON_DOT : ''}
+                  <div class="w-10 h-10 rounded-xl border-2 border-white shrink-0 shadow-md" style="background:${c.hex}"></div>
+                  <div class="font-heading font-bold text-xs text-white">${c.name}</div>
+                </button>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      }
+    }
+
+    function clearCauldronSlots() {
+      playSfx('click');
+      mixerSlotA = null;
+      mixerSlotB = null;
+      lastMixedPigment = null;
+      renderInteractiveAlchemyDock();
+    }
+
+    function pourBottleIntoCauldron(potId) {
+      playSfx('pour');
+      const pot = BASE_POTS.find(x => x.id === potId);
+      if (pot) {
+        triggerPourStreamFX(pot.color);
+        if (cauldronLiquidMat) {
+          cauldronLiquidMat.color.setHex(pot.color);
+          cauldronLiquidMat.emissive.setHex(pot.color);
+        }
+      }
+
+      if (!mixerSlotA) {
+        mixerSlotA = potId;
+        lastMixedPigment = null;
+        renderInteractiveAlchemyDock();
+        return;
+      }
+
+      if (!mixerSlotB) {
+        mixerSlotB = potId;
+      } else {
+        mixerSlotA = potId;
+        mixerSlotB = null;
+        lastMixedPigment = null;
+        renderInteractiveAlchemyDock();
+        return;
+      }
+
+      // Both slots filled -> Synthesize pigment immediately!
+      const result = resolveColorMixture(mixerSlotA, mixerSlotB);
+      lastMixedPigment = result;
+      triggerPourStreamFX(result.color);
+
+      if (cauldronLiquidMat) {
+        cauldronLiquidMat.color.setHex(result.color);
+        cauldronLiquidMat.emissive.setHex(result.color);
+      }
+
+      renderInteractiveAlchemyDock();
+
+      // Check if this matches the active stage goal!
+      const spec = LEVEL_STAGE_SPECS[current3DLevel]?.[current3DStep];
+      if (spec && result.name === spec.targetPigment) {
+        showToast(`✨ Synthesized ${result.name} (${result.type})! Restoring 3D Landmark!`);
+        setTimeout(() => {
+          mixerSlotA = null;
+          mixerSlotB = null;
+          advance3DStageWithBeam(result.color, result.name);
+        }, 700);
+      } else {
+        currentLevelMistakes++;
+        playSfx('error');
+        showToast(`🧪 Mixed ${mixerSlotA} + ${mixerSlotB} = ${result.name} (${result.type})! Goal needs ${spec ? spec.targetPigment : ''}.`);
+      }
+    }
+
+    function selectHarmonyChoice(chosenName, correctName, colorHexNum) {
+      if (chosenName === correctName) {
+        triggerPourStreamFX(colorHexNum);
+        if (cauldronLiquidMat) {
+          cauldronLiquidMat.color.setHex(colorHexNum);
+          cauldronLiquidMat.emissive.setHex(colorHexNum);
+        }
+        showToast(`✨ Correct! ${chosenName} aligned!`);
+        advance3DStageWithBeam(colorHexNum, chosenName);
+      } else {
+        currentLevelMistakes++;
+        playSfx('error');
+        showToast(`💡 "${chosenName}" isn't the right match—check the Color Theory clue or 🎡 Wheel Guide!`);
+      }
+    }
+
+    function attemptVisionChoice(visionId, chosenName, correctName, colorHexNum) {
+      activate3DVision(visionId, false);
+      if (chosenName === correctName) {
+        triggerPourStreamFX(colorHexNum);
+        if (cauldronLiquidMat) {
+          cauldronLiquidMat.color.setHex(colorHexNum);
+          cauldronLiquidMat.emissive.setHex(colorHexNum);
+        }
+        showToast(`✨ Spot on! ${chosenName} stands out clearly under this vision mode!`);
+        advance3DStageWithBeam(colorHexNum, chosenName);
+      } else {
+        currentLevelMistakes++;
+        playSfx('error');
+        showToast(`👓 Under this vision filter, "${chosenName}" loses contrast—try another color swatch!`);
+        renderInteractiveAlchemyDock();
+      }
+    }
+
+    function advance3DStageWithBeam(colorHexNum, tagLabel) {
+      playSfx('stepDone');
+      const mon = landmarks3D[current3DStep];
+      if (mon) {
+        mon.restored = true;
+        mon.statueMat.color.setHex(colorHexNum);
+        mon.statueMat.emissive = new THREE.Color(colorHexNum);
+        mon.statueMat.emissiveIntensity = 0.5;
+        mon.statueMat.roughness = 0.18;
+        if (mon.haloRing) mon.haloRing.visible = false;
+
+        const lbl = document.getElementById(`lbl3d-${mon.id}`);
+        if (lbl) {
+          lbl.innerHTML = `✨ ${mon.title} <span class="text-emerald-300">(${tagLabel}!)</span>`;
+        }
+        fire3DColorBeam(mon.pos, colorHexNum);
+      }
+
+      current3DStep++;
+      triggerHeroJump3D();
+
+      const prevStars = state.levelStars[current3DLevel] || 0;
+      if (current3DStep < 3 && current3DStep > prevStars) {
+        state.levelStars[current3DLevel] = current3DStep;
+        writeSave();
+      }
+
+      if (current3DStep >= 3) {
+        refresh3DMissionHeader();
+        setTimeout(() => showLevelVictoryModal(), 950);
+      } else {
+        refresh3DMissionHeader();
+        renderInteractiveAlchemyDock();
+      }
+    }
+
+    function showLevelVictoryModal() {
+      playSfx('stepDone');
+      burstConfetti();
+      const lvl = LEVELS.find(l => l.id === current3DLevel);
+      const earnedStars = currentLevelMistakes === 0 ? 3 : (currentLevelMistakes <= 2 ? 3 : 2);
+      const bonusCoins = currentLevelMistakes === 0 ? 250 : 150;
+
+      state.coins = (state.coins || 100) + bonusCoins;
+      state.levelStars[current3DLevel] = Math.max(state.levelStars[current3DLevel] || 0, earnedStars);
+      writeSave();
+
+      document.getElementById('victory-badge-pill').textContent = `3D Level Complete • ${'⭐'.repeat(earnedStars)} Earned!`;
+      document.getElementById('victory-title').textContent = `${lvl.code}: ${lvl.title} Complete!`;
+      document.getElementById('victory-desc').textContent = `You completed all 3 stages, restored the 3D landmarks, and earned the ${lvl.trophy}!`;
+      document.getElementById('victory-accuracy').textContent = currentLevelMistakes === 0
+        ? 'Flawless Alchemist (0 Mistakes!)'
+        : `${currentLevelMistakes} Test Mix${currentLevelMistakes > 1 ? 'es' : ''}`;
+      document.getElementById('victory-coins').textContent = `+${bonusCoins} Gold Coins`;
+
+      const unlockNote = document.getElementById('victory-unlock-note');
+      if (current3DLevel < 6) {
+        unlockNote.textContent = `🌟 Ready for the next adventure! Click Continue to move to Level ${current3DLevel + 1} (${LEVELS[current3DLevel].title}) or any village workshop!`;
+        state.selectedMapLevel = current3DLevel + 1;
+      } else {
+        unlockNote.textContent = `👑 Congratulations! You have mastered Level 6 of The Colour Code!`;
+      }
+      const m = document.getElementById('modal-victory');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeVictoryTo2DMap() {
+      const m = document.getElementById('modal-victory');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+      openVillageMapScreen();
+    }
+
+    function activate3DVision(mode, rerenderDock = false) {
+      playSfx('click');
+      state.visionMode = mode;
+      document.body.className = mode;
+      if (rerenderDock && state.screen === 'play3d') {
+        renderInteractiveAlchemyDock();
+      }
+    }
+
+    // =========================================================================
+    // 6B. INTERACTIVE 12-HUE COLOR WHEEL GUIDE MODAL
+    // =========================================================================
+    const WHEEL_12_SLICES = [
+      { name: 'Red',              role: 'Primary',   deg: 0,   hex: '#ef4444', comp: 'Emerald Green (180°)', neighbors: 'Magenta & Vermilion' },
+      { name: 'Vermilion',        role: 'Tertiary',  deg: 30,  hex: '#ff3b1f', comp: 'Teal (210°)',          neighbors: 'Red & Tangerine Orange' },
+      { name: 'Tangerine Orange', role: 'Secondary', deg: 60,  hex: '#f97316', comp: 'Blue (240°)',          neighbors: 'Vermilion & Amber Gold' },
+      { name: 'Amber Gold',       role: 'Tertiary',  deg: 90,  hex: '#fbbf24', comp: 'Indigo (270°)',        neighbors: 'Tangerine Orange & Yellow' },
+      { name: 'Yellow',           role: 'Primary',   deg: 120, hex: '#eab308', comp: 'Royal Purple (300°)',  neighbors: 'Amber Gold & Chartreuse' },
+      { name: 'Chartreuse',       role: 'Tertiary',  deg: 150, hex: '#84cc16', comp: 'Magenta (330°)',       neighbors: 'Yellow & Emerald Green' },
+      { name: 'Emerald Green',    role: 'Secondary', deg: 180, hex: '#10b981', comp: 'Red (0°)',             neighbors: 'Chartreuse & Teal' },
+      { name: 'Teal',             role: 'Tertiary',  deg: 210, hex: '#0d9488', comp: 'Vermilion (30°)',      neighbors: 'Emerald Green & Blue' },
+      { name: 'Blue',             role: 'Primary',   deg: 240, hex: '#3b82f6', comp: 'Tangerine Orange (60°)',neighbors: 'Teal & Indigo' },
+      { name: 'Indigo',           role: 'Tertiary',  deg: 270, hex: '#4f46e5', comp: 'Amber Gold (90°)',     neighbors: 'Blue & Royal Purple' },
+      { name: 'Royal Purple',     role: 'Secondary', deg: 300, hex: '#9333ea', comp: 'Yellow (120°)',        neighbors: 'Indigo & Magenta' },
+      { name: 'Magenta',          role: 'Tertiary',  deg: 330, hex: '#db2777', comp: 'Chartreuse (150°)',    neighbors: 'Royal Purple & Red' }
+    ];
+    let selectedWheelSliceIdx = 0;
+
+    function openWheelGuideModal() {
+      playSfx('click');
+      renderInteractive12HueWheel();
+      const m = document.getElementById('modal-wheel-guide');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeWheelGuideModal() {
+      playSfx('click');
+      const m = document.getElementById('modal-wheel-guide');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function selectWheelSlice(idx) {
+      playSfx('click');
+      selectedWheelSliceIdx = idx;
+      renderInteractive12HueWheel();
+    }
+
+    function renderInteractive12HueWheel() {
+      const svg = document.getElementById('guide-wheel-svg');
+      if (!svg) return;
+      const rOuter = 118, rInner = 42;
+      let pathsHTML = '';
+
+      WHEEL_12_SLICES.forEach((s, idx) => {
+        const startAngle = ((idx * 30 - 105) * Math.PI) / 180;
+        const endAngle = (((idx + 1) * 30 - 105) * Math.PI) / 180;
+        const x1 = Math.cos(startAngle) * rOuter;
+        const y1 = Math.sin(startAngle) * rOuter;
+        const x2 = Math.cos(endAngle) * rOuter;
+        const y2 = Math.sin(endAngle) * rOuter;
+        const x3 = Math.cos(endAngle) * rInner;
+        const y3 = Math.sin(endAngle) * rInner;
+        const x4 = Math.cos(startAngle) * rInner;
+        const y4 = Math.sin(startAngle) * rInner;
+
+        const isSel = idx === selectedWheelSliceIdx;
+        const isComp = idx === (selectedWheelSliceIdx + 6) % 12;
+        const strokeCol = isSel ? '#ffffff' : (isComp ? '#fde047' : '#0f172a');
+        const strokeW = isSel ? 4 : (isComp ? 3 : 1.5);
+
+        pathsHTML += `
+          <path d="M ${x1} ${y1} A ${rOuter} ${rOuter} 0 0 1 ${x2} ${y2} L ${x3} ${y3} A ${rInner} ${rInner} 0 0 0 ${x4} ${y4} Z"
+                fill="${s.hex}" stroke="${strokeCol}" stroke-width="${strokeW}"
+                style="cursor:pointer; transition: transform 0.15s;"
+                onclick="selectWheelSlice(${idx})" />
+        `;
+      });
+
+      const active = WHEEL_12_SLICES[selectedWheelSliceIdx];
+      pathsHTML += `<circle cx="0" cy="0" r="34" fill="#0f172a" stroke="#ffffff" stroke-width="2" />`;
+      pathsHTML += `<text x="0" y="4" text-anchor="middle" fill="#fbbf24" font-family="Outfit" font-weight="800" font-size="11">${active.deg}°</text>`;
+      svg.innerHTML = pathsHTML;
+
+      document.getElementById('guide-slice-title').textContent = `${active.name} (${active.deg}° • ${active.role} Color)`;
+      document.getElementById('guide-slice-desc').textContent = `180° Complement: ${active.comp} • Neighbors: ${active.neighbors}`;
+    }
+
+    function openFreeColorLabModal() {
+      playSfx('click');
+      renderFreeLabUI();
+      const m = document.getElementById('modal-freelab');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeFreeColorLabModal() {
+      playSfx('click');
+      const m = document.getElementById('modal-freelab');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    function pickFreeLabBottle(potId) {
+      playSfx('pour');
+      if (freeMixNextSlot === 1) {
+        freeMixA = potId;
+        freeMixNextSlot = 2;
+      } else {
+        freeMixB = potId;
+        freeMixNextSlot = 1;
+      }
+      renderFreeLabUI();
+    }
+
+    function setFreeLabPair(a, b) {
+      playSfx('pour');
+      freeMixA = a;
+      freeMixB = b;
+      renderFreeLabUI();
+    }
+
+    function renderFreeLabUI() {
+      const grid = document.getElementById('freelab-pots-grid');
+      if (!grid) return;
+
+      grid.innerHTML = BASE_POTS.map(p => {
+        const active = (p.id === freeMixA || p.id === freeMixB);
+        return `
+          <button onclick="pickFreeLabBottle('${p.id}')"
+                  class="paint-pot p-2 rounded-2xl border-2 ${active ? 'border-amber-500 bg-amber-50' : 'border-slate-200 bg-white'} flex flex-col items-center gap-1 shadow-sm">
+            <div class="w-9 h-9 rounded-xl border border-slate-400 shadow-inner" style="background:${p.hex}"></div>
+            <span class="font-heading font-bold text-xs text-slate-900">${p.name}</span>
+            <span class="text-[10px] text-slate-500">${p.role}</span>
+          </button>
+        `;
+      }).join('');
+
+      const pA = BASE_POTS.find(x => x.id === freeMixA);
+      const pB = BASE_POTS.find(x => x.id === freeMixB);
+      const res = resolveColorMixture(freeMixA, freeMixB);
+
+      document.getElementById('freelab-slot1-swatch').style.background = pA.hex;
+      document.getElementById('freelab-slot1-name').textContent = pA.name;
+      document.getElementById('freelab-slot2-swatch').style.background = pB.hex;
+      document.getElementById('freelab-slot2-name').textContent = pB.name;
+
+      document.getElementById('freelab-res-swatch').style.background = res.hex;
+      document.getElementById('freelab-res-hex').textContent = res.hex.toUpperCase();
+      document.getElementById('freelab-res-badge').textContent = res.type;
+      document.getElementById('freelab-res-formula').textContent = `${pA.name} + ${pB.name}`;
+      document.getElementById('freelab-res-title').textContent = res.name;
+      document.getElementById('freelab-res-fact').textContent = res.fact;
+
+      const list = document.getElementById('freelab-encyclopedia-list');
+      list.innerHTML = Object.entries(REAL_PIGMENT_DICTIONARY).map(([pairKey, info]) => {
+        const [c1, c2] = pairKey.split('+');
+        return `
+          <button onclick="setFreeLabPair('${c1}', '${c2}')"
+                  class="p-2 rounded-xl border border-slate-200 hover:border-amber-400 bg-slate-50 flex items-center gap-2.5 text-left transition">
+            <div class="w-7 h-7 rounded-lg border border-slate-400 shrink-0" style="background:${info.hex}"></div>
+            <div class="overflow-hidden">
+              <div class="font-heading font-bold text-xs text-slate-900 truncate">${info.name}</div>
+              <div class="text-[10px] text-slate-500 truncate">${c1} + ${c2} • ${info.type}</div>
+            </div>
+          </button>
+        `;
+      }).join('');
+    }
+
+    // =========================================================================
+    // 8. 3D MOVEMENT & CAMERA CONTROLS
+    // =========================================================================
+    const keys = {};
+    let dpad = { x: 0, z: 0 };
+    let camYaw = 0;
+    let camPitch = 0.42;
+    let camDist = 21;
+    let isDraggingCamera = false;
+    let lastPointer = { x: 0, y: 0 };
+    let heroVelY = 0;
+    let heroPosY = 0;
+
+    window.addEventListener('blur', clearMovementInputs);
+    window.addEventListener('keydown', e => {
+      keys[e.code] = true;
+      if (state.screen === 'play3d' && e.code === 'Space') {
+        e.preventDefault();
+        triggerHeroJump3D();
+      }
+    });
+    window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+    function setDpad(x, z) { dpad = { x, z }; }
+    function triggerHeroJump3D() {
+      if (heroPosY <= 0.01) {
+        heroVelY = 8.5;
+      }
+    }
+
+    renderer.domElement.addEventListener('pointerdown', e => {
+      if (e.target !== renderer.domElement) return;
+      isDraggingCamera = true;
+      lastPointer = { x: e.clientX, y: e.clientY };
+    });
+    window.addEventListener('pointermove', e => {
+      if (!isDraggingCamera) return;
+      const dx = e.clientX - lastPointer.x;
+      const dy = e.clientY - lastPointer.y;
+      lastPointer = { x: e.clientX, y: e.clientY };
+
+      if (state.screen === 'home' || state.screen === 'wardrobe') {
+        previewYaw += dx * 0.01;
+      } else if (state.screen === 'play3d') {
+        camYaw -= dx * 0.007;
+        camPitch = Math.max(0.2, Math.min(1.1, camPitch + dy * 0.006));
+      }
+    });
+    window.addEventListener('pointerup', () => { isDraggingCamera = false; });
+    window.addEventListener('pointercancel', () => { isDraggingCamera = false; setDpad(0, 0); });
+    window.addEventListener('wheel', e => {
+      if (state.screen === 'play3d') {
+        camDist = Math.max(12, Math.min(32, camDist + e.deltaY * 0.015));
+      }
+    });
+
+    // =========================================================================
+    // 9. TROPHIES, SETTINGS & TOAST HELPERS
+    // =========================================================================
+    function openTrophyModal() {
+      playSfx('click');
+      document.getElementById('modal-generic-title').innerHTML = ic('trophy') + ' Trophy Room';
+      document.getElementById('modal-generic-body').innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          ${LEVELS.map(l => {
+            const stars = state.levelStars[l.id] || 0;
+            const unlocked = stars > 0;
+            return `
+              <div class="p-4 rounded-2xl border ${unlocked ? 'bg-amber-500/15 border-amber-400' : 'bg-slate-900/60 border-slate-800 opacity-55'} flex items-center gap-4">
+                <div class="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl ${unlocked ? 'bg-amber-400 text-slate-950' : 'bg-slate-800'}">
+                  ${unlocked ? '🏆' : '🔒'}
+                </div>
+                <div>
+                  <div class="text-xs font-heading font-bold text-amber-300">${l.code} • ${'⭐'.repeat(stars)}${'☆'.repeat(3 - stars)}</div>
+                  <div class="font-title font-bold text-base text-white">${l.trophy}</div>
+                  <div class="text-xs text-slate-300">${l.title}</div>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+      const m = document.getElementById('modal-generic');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    const ICONS = {
+      gear: '<path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/>',
+      volume: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>',
+      mute: '<polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/>',
+      trophy: '<path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>',
+      flask: '<path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/>',
+      shirt: '<path d="M20.38 3.46 16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/>',
+      map: '<polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21 3 6"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/>',
+      star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+      reset: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+      x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>'
+    };
+    function ic(name) { return `<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">${ICONS[name] || ''}</svg>`; }
+    function initIcons() {
+      document.querySelectorAll('i[data-ic]').forEach(el => { el.outerHTML = ic(el.getAttribute('data-ic')); });
+    }
+
+    function openSettingsModal() {
+      playSfx('click');
+      document.getElementById('modal-generic-title').innerHTML = ic('gear') + ' Sound & Game Settings';
+      document.getElementById('modal-generic-body').innerHTML = `
+        <div class="space-y-4">
+          <div class="flex justify-between items-center p-4 rounded-2xl bg-slate-900 border border-slate-800">
+            <div>
+              <div class="font-heading font-bold text-white">Sound Effects</div>
+              <div class="text-xs text-slate-400">Turn game sounds on or off</div>
+            </div>
+            <button onclick="state.soundOn = !state.soundOn; writeSave(); openSettingsModal();" class="btn-game px-5 py-2 rounded-xl ${state.soundOn ? 'bg-emerald-500 text-slate-950' : 'bg-slate-700 text-slate-300'}">
+              ${state.soundOn ? ic('volume') + ' Sound: ON' : ic('mute') + ' Sound: OFF'}
+            </button>
+          </div>
+          <div class="flex justify-between items-center p-4 rounded-2xl bg-slate-900 border border-slate-800">
+            <div>
+              <div class="font-heading font-bold text-amber-300">Get All Stars</div>
+              <div class="text-xs text-slate-400">Fill every level with 3 stars (all levels are always open)</div>
+            </div>
+            <button onclick="state.levelStars={1:3,2:3,3:3,4:3,5:3,6:3}; writeSave(); closeGenericModal(); showToast('All stars collected!');" class="btn-game px-5 py-2 rounded-xl bg-amber-400 text-slate-950 text-xs">
+              ${ic('star')} Get Stars
+            </button>
+          </div>
+          <div class="flex justify-between items-center p-4 rounded-2xl bg-slate-900 border border-slate-800">
+            <div>
+              <div class="font-heading font-bold text-rose-300">Reset Story Progress</div>
+              <div class="text-xs text-slate-400">Clear all stars and start again from Level 1</div>
+            </div>
+            <button onclick="state.levelStars={1:0,2:0,3:0,4:0,5:0,6:0}; state.selectedMapLevel=1; writeSave(); closeGenericModal(); showToast('Progress Reset!');" class="btn-game px-5 py-2 rounded-xl bg-rose-600 text-white text-xs">
+              ${ic('reset')} Reset Progress
+            </button>
+          </div>
+        </div>
+      `;
+      const m = document.getElementById('modal-generic');
+      m.classList.remove('hidden');
+      m.classList.add('flex');
+    }
+
+    function closeGenericModal() {
+      const m = document.getElementById('modal-generic');
+      m.classList.add('hidden');
+      m.classList.remove('flex');
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const t = document.getElementById('game-toast');
+      document.getElementById('toast-text').textContent = msg;
+      t.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.add('hidden'), 3200);
+    }
+
+    // =========================================================================
+    // 10. 3D MINI-MAP RADAR & MAIN 60FPS ANIMATION LOOP
+    // =========================================================================
+    const radarCanvas = document.getElementById('radar-3d');
+    const rCtx = radarCanvas.getContext('2d');
+
+    function draw3DRadar() {
+      if (!radarCanvas) return;
+      const w = radarCanvas.width, h = radarCanvas.height, cx = w / 2, cy = h / 2;
+      const scale = 2.2;
+      rCtx.clearRect(0, 0, w, h);
+
+      // Center Cauldron dot
+      rCtx.fillStyle = '#38bdf8';
+      rCtx.beginPath();
+      rCtx.arc(cx, cy + 1.5 * scale, 4, 0, Math.PI * 2);
+      rCtx.fill();
+
+      // 3 Landmarks
+      landmarks3D.forEach((m, i) => {
+        rCtx.fillStyle = m.restored ? '#10b981' : (i === current3DStep ? '#fde047' : '#64748b');
+        rCtx.beginPath();
+        rCtx.arc(cx + m.pos.x * scale, cy + m.pos.z * scale, i === current3DStep ? 5 : 3.8, 0, Math.PI * 2);
+        rCtx.fill();
+      });
+
+      // Hero Dot
+      rCtx.fillStyle = '#ffffff';
+      rCtx.beginPath();
+      rCtx.arc(cx + heroGroup.position.x * scale, cy + heroGroup.position.z * scale, 4, 0, Math.PI * 2);
+      rCtx.fill();
+    }
+
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const dt = Math.min(clock.getDelta(), 0.1);
+      const elapsed = clock.getElapsedTime();
+
+      // Animate 3D Fluttering Butterflies across the sunlit island
+      butterflies3D.forEach((b, idx) => {
+        b.angle += dt * b.speed;
+        b.group.position.set(
+          Math.cos(b.angle) * b.radius,
+          b.height + Math.sin(elapsed * 3.5 + idx) * 0.45,
+          Math.sin(b.angle) * b.radius - 2
+        );
+        b.group.rotation.y = -b.angle;
+        const flap = Math.sin(elapsed * 18 + idx) * 0.65;
+        b.leftWing.rotation.y = flap;
+        b.rightWing.rotation.y = -flap;
+      });
+
+      if (heroVelY !== 0 || heroPosY > 0) {
+        heroPosY += heroVelY * dt;
+        heroVelY -= 24 * dt;
+        if (heroPosY <= 0) {
+          heroPosY = 0;
+          heroVelY = 0;
+        }
+      }
+
+      if (state.screen === 'home' || state.screen === 'wardrobe') {
+        heroGroup.position.set(0, 0.2 + heroPosY, 0);
+        heroGroup.rotation.y = previewYaw + Math.sin(elapsed * 0.7) * 0.08;
+        leftArm.rotation.x = Math.sin(elapsed * 2) * 0.05;
+        rightArm.rotation.x = -Math.sin(elapsed * 2) * 0.05;
+        leftLeg.rotation.x = 0;
+        rightLeg.rotation.x = 0;
+
+        camera.position.set(0, 2.8, 7.6);
+        camera.lookAt(0, 2.3, 0);
+      } else if (state.screen === 'play3d') {
+        let moveX = dpad.x;
+        let moveFwd = dpad.z;
+        if (keys['KeyW'] || keys['ArrowUp']) moveFwd += 1;
+        if (keys['KeyS'] || keys['ArrowDown']) moveFwd -= 1;
+        if (keys['KeyA'] || keys['ArrowLeft']) moveX -= 1;
+        if (keys['KeyD'] || keys['ArrowRight']) moveX += 1;
+
+        let isWalking = false;
+        if (moveX !== 0 || moveFwd !== 0) {
+          const len = Math.hypot(moveX, moveFwd);
+          moveX /= len;
+          moveFwd /= len;
+
+          const speed = 14.5;
+          const sinY = Math.sin(camYaw);
+          const cosY = Math.cos(camYaw);
+          const dx = (-moveFwd * sinY + moveX * cosY) * speed * dt;
+          const dz = (-moveFwd * cosY - moveX * sinY) * speed * dt;
+
+          heroGroup.position.x = Math.max(-20, Math.min(20, heroGroup.position.x + dx));
+          heroGroup.position.z = Math.max(-18, Math.min(18, heroGroup.position.z + dz));
+          heroGroup.rotation.y = Math.atan2(dx, dz);
+          isWalking = true;
+        }
+
+        heroGroup.position.y = 0.2 + heroPosY + (isWalking ? Math.abs(Math.sin(elapsed * 13)) * 0.1 : 0);
+
+        if (isWalking) {
+          const swing = Math.sin(elapsed * 13) * 0.65;
+          leftLeg.rotation.x = swing;
+          rightLeg.rotation.x = -swing;
+          leftArm.rotation.x = -swing * 0.7;
+          rightArm.rotation.x = swing * 0.7;
+        } else {
+          leftLeg.rotation.x = 0;
+          rightLeg.rotation.x = 0;
+          leftArm.rotation.x = Math.sin(elapsed * 2) * 0.06;
+          rightArm.rotation.x = -Math.sin(elapsed * 2) * 0.06;
+        }
+
+        // Frame the 3D Cauldron, Hero, and 3D Statues clearly above the bottom Alchemy Dock
+        const focusX = heroGroup.position.x * 0.35;
+        const focusZ = -3.0;
+        const cx = focusX + Math.sin(camYaw) * Math.cos(camPitch) * camDist;
+        const cy = 2.5 + Math.sin(camPitch) * camDist;
+        const cz = focusZ + Math.cos(camYaw) * Math.cos(camPitch) * camDist;
+        camera.position.lerp(new THREE.Vector3(cx, cy, cz), 1 - Math.exp(-10 * dt));
+        camera.lookAt(focusX, 1.2, -4.5);
+        camera.updateMatrixWorld();
+
+        // Animate 3D Pouring Stream
+        if (pourStreamMesh && pourStreamTimer > 0) {
+          pourStreamTimer -= dt;
+          pourStreamMesh.scale.x = 0.8 + Math.sin(elapsed * 30) * 0.25;
+          pourStreamMesh.scale.z = 0.8 + Math.cos(elapsed * 30) * 0.25;
+          if (pourStreamTimer <= 0) {
+            pourStreamMesh.visible = false;
+          }
+        }
+
+        // Animate Rising 3D Cauldron Bubbles
+        cauldronBubbles.forEach(b => {
+          const cycle = (elapsed * 1.4 + b.offset) % 1.6;
+          b.mesh.position.y = b.baseY + cycle * 1.15;
+          const s = Math.sin((cycle / 1.6) * Math.PI);
+          b.mesh.scale.setScalar(Math.max(0.01, s));
+        });
+
+        // Animate Expanding Restoration Shockwaves
+        for (let i = shockwaveRings.length - 1; i >= 0; i--) {
+          const sw = shockwaveRings[i];
+          sw.age += dt * 1.8;
+          const scale = 1 + sw.age * 3.8;
+          sw.mesh.scale.set(scale, scale, 1);
+          sw.mesh.material.opacity = Math.max(0, 1 - sw.age);
+          if (sw.age >= 1) {
+            levelStageGroup.remove(sw.mesh);
+            shockwaveRings.splice(i, 1);
+          }
+        }
+
+        // Fade out 3D Cauldron Beam after firing
+        if (activeBeamMesh && beamTimer > 0) {
+          beamTimer -= dt;
+          if (beamTimer <= 0) {
+            levelStageGroup.remove(activeBeamMesh);
+            activeBeamMesh = null;
+          }
+        }
+
+        // Rotate 3D Sculptures & Project Frustum-Safe Labels
+        landmarks3D.forEach(m => {
+          if (m.sculpture) m.sculpture.rotation.y += dt * 0.85;
+          if (m.haloRing && m.haloRing.visible) {
+            const s = 1 + Math.sin(elapsed * 5) * 0.1;
+            m.haloRing.scale.set(s, s, 1);
+          }
+
+          const lbl = document.getElementById(`lbl3d-${m.id}`);
+          if (lbl) {
+            const v = m.pos.clone();
+            v.y += m.labelY;
+            v.project(camera);
+            if (v.z < -1 || v.z > 1 || Math.abs(v.x) > 1.05 || Math.abs(v.y) > 1.05) {
+              lbl.style.opacity = '0';
+            } else {
+              lbl.style.opacity = '1';
+              lbl.style.left = `${(v.x * 0.5 + 0.5) * window.innerWidth}px`;
+              lbl.style.top = `${(-(v.y * 0.5) + 0.5) * window.innerHeight}px`;
+            }
+          }
+        });
+
+        draw3DRadar();
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    window.addEventListener('resize', () => {
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      updateCameraFraming();
+    });
+
+    window.onload = () => {
+      loadSave();
+      initIcons();
+      initAmbientOrbs();
+      syncHeroAppearance();
+      openHomeScreen();
+      animate();
+    };
+  </script>
+</body>
+</html>
